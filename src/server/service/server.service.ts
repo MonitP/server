@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Servers } from '../entities/server.entity';
@@ -6,9 +6,11 @@ import { CreateServerDto } from '../dto/create-server.dto';
 
 @Injectable()
 export class ServerService {
+  private readonly logger = new Logger(ServerService.name);
+
   constructor(
     @InjectRepository(Servers)
-    private serversRepository: Repository<Servers>,
+    private readonly serversRepository: Repository<Servers>,
   ) {}
 
   async create(createServerDto: CreateServerDto): Promise<Servers> {
@@ -29,5 +31,36 @@ export class ServerService {
 
   async findOne(id: string): Promise<Servers | null> {
     return this.serversRepository.findOne({ where: { id } });
+  }
+
+  async delete(id: string): Promise<void> {
+    this.logger.log(`서버 삭제 시도: ID=${id}`);
+    
+    const server = await this.serversRepository.findOne({ where: { id } });
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: ID=${id}`);
+      throw new NotFoundException('서버를 찾을 수 없습니다.');
+    }
+
+    await this.serversRepository.remove(server);
+    this.logger.log(`서버 삭제 성공: ID=${id}`);
+  }
+
+  async update(id: string, updateServerDto: CreateServerDto): Promise<Servers> {
+    this.logger.log(`서버 업데이트 시도: ID=${id}`);
+    
+    const server = await this.findOne(id);
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: ID=${id}`);
+      throw new NotFoundException('서버를 찾을 수 없습니다.');
+    }
+
+    const updatedServer = await this.serversRepository.save({
+      ...server,
+      ...updateServerDto,
+    });
+    
+    this.logger.log(`서버 업데이트 성공: ID=${id}`);
+    return updatedServer;
   }
 } 
