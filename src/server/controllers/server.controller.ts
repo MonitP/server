@@ -17,4 +17,12 @@ export class ServerController {
     this.logger.log(`서버 생성 완료: ${JSON.stringify(server)}`);
     return server;
   }
+
+  @Get(API_URLS.server.base)
+  async findAll(): Promise<Partial<Servers>[]> {
+    this.logger.log('서버 리스트 요청');
+    const servers = await this.serversService.findAll();
+    this.logger.log(`서버 리스트 반환: ${JSON.stringify(servers)}`);
+    return servers;
+  }
 }

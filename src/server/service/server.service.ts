@@ -21,8 +21,10 @@ export class ServerService {
     return this.serversRepository.save(server);
   }
 
-  async findAll(): Promise<Servers[]> {
-    return this.serversRepository.find();
+  async findAll(): Promise<Partial<Servers>[]> {
+    return this.serversRepository.find({
+      select: ['id', 'name', 'ip', 'port', 'processes'],
+    });
   }
 
   async findOne(id: string): Promise<Servers | null> {
