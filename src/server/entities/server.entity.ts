@@ -5,6 +5,9 @@ export class Servers {
   @PrimaryGeneratedColumn()
   id: string;
 
+  @Column({ unique: true })
+  code: string;
+
   @Column()
   name: string;
 
