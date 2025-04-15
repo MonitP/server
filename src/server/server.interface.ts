@@ -1,19 +1,18 @@
 import { Servers } from './entities/server.entity';
 
 export interface ProcessStatus {
-  id: string;
   name: string;
-  status: 'running' | 'stopped';
 }
 
 export interface ServerStatus {
   id: string;
   name: string;
-  status: 'connected' | 'disconnected';
+  code: string;
   cpu: number;
   memory: number;
   disk: number;
   processes: ProcessStatus[];
+  status: 'connected' | 'disconnected';
   lastUpdate: Date;
   cpuHistory: number[];
   memoryHistory: number[];

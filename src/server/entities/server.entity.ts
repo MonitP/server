@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { ProcessStatus } from '../server.interface';
 
 @Entity('servers')
 export class Servers {
@@ -18,11 +19,7 @@ export class Servers {
   port: number;
 
   @Column({ type: 'json', nullable: true })
-  processes: Array<{
-    id: string;
-    name: string;
-    status: 'running' | 'stopped';
-  }>;
+  processes: ProcessStatus[];
 
   @Column({ type: 'json', nullable: true })
   cpuHistory: number[];

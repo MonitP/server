@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Servers } from '../entities/server.entity';
 import { CreateServerDto } from '../dto/create-server.dto';
+import { ProcessStatus } from '../server.interface';
 
 @Injectable()
 export class ServerService {
@@ -31,6 +32,28 @@ export class ServerService {
 
   async findOne(id: string): Promise<Servers | null> {
     return this.serversRepository.findOne({ where: { id } });
+  }
+
+  async findByCode(code: string): Promise<Servers | null> {
+    return this.serversRepository.findOne({ where: { code } });
+  }
+
+  async updateProcesses(code: string, processes: ProcessStatus[]): Promise<void> {
+    const server = await this.findByCode(code);
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: code=${code}`);
+      throw new NotFoundException('서버를 찾을 수 없습니다.');
+    }
+
+    // 기존 프로세스와 새로운 프로세스 비교
+    const existingProcessNames = new Set(server.processes.map(p => p.name));
+    const newProcesses = processes.filter(p => !existingProcessNames.has(p.name));
+
+    if (newProcesses.length > 0) {
+      this.logger.log(`새로운 프로세스 발견: 서버=${server.name}, 프로세스=${JSON.stringify(newProcesses)}`);
+      server.processes = [...server.processes, ...newProcesses];
+      await this.serversRepository.save(server);
+    }
   }
 
   async delete(id: string): Promise<void> {
