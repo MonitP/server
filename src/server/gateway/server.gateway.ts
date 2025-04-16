@@ -1,4 +1,3 @@
-// 📁 src/servers/gateways/servers.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -8,7 +7,6 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ServerStatusService } from '../service';
-import { ProcessStatus } from '../server.interface';
 
 @Injectable()
 @WebSocketGateway({
@@ -31,26 +29,31 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
     client.on('update-status', async (data: {
       code: string;
-      cpu: number;
-      memory: number;
-      disk: number;
-      processes: string[];
-      status: 'connected' | 'disconnected';
+      status: {
+        cpu: string;
+        ram: { usage: string };
+        disk: { usage: string };
+      };
     }) => {
-      await this.statusService.update(data.code, {
-        cpu: data.cpu,
-        memory: data.memory,
-        disk: data.disk,
-        processes: data.processes,
-        status: data.status
+      const { code, status } = data;
+      await this.statusService.update(code, {
+        cpu: parseFloat(status.cpu),
+        memory: parseFloat(status.ram.usage),
+        disk: parseFloat(status.disk.usage),
+        status: 'connected',
       }, client.id);
+    });
+
+    client.on('update-process', async (data: {
+      code: string;
+      processes: string[];
+    }) => {
+      await this.statusService.updateProcesses(data.code, data.processes);
     });
   }
 
   handleDisconnect(client: Socket) {
     console.log(`server disconnected: ${client.id}`);
-    
-    // 서버 연결이 끊어졌을 때 서버와 프로세스 상태를 모두 disconnected/stopped로 변경
     this.statusService.setDisconnected(client.id);
   }
 }

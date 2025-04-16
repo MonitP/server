@@ -45,10 +45,8 @@ export class ServerService {
       throw new NotFoundException('서버를 찾을 수 없습니다.');
     }
 
-    // 기존 프로세스와 새로운 프로세스 비교
     const existingProcessMap = new Map(server.processes.map(p => [p.name, p]));
     
-    // 기존 프로세스 업데이트 및 새로운 프로세스 추가
     processes.forEach(newProcess => {
       const existingProcess = existingProcessMap.get(newProcess.name);
       if (existingProcess) {
@@ -74,7 +72,7 @@ export class ServerService {
     this.logger.log(`서버 삭제 성공: ID=${id}`);
   }
 
-  async update(id: string, updateServerDto: CreateServerDto): Promise<Servers> {
+  async update(id: string, updateServerDto: Partial<Servers>): Promise<Servers> {
     this.logger.log(`서버 업데이트 시도: ID=${id}`);
     
     const server = await this.findOne(id);

@@ -1,8 +1,13 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ProcessStatus, ServerStatus } from '../server.interface';
 import { ServerService } from './server.service';
-import { Servers } from '../entities';
 import { Server } from 'socket.io';
+
+type hourBuffer = {
+  sumCpu: number;
+  sumMemory: number;
+  count: number;
+};
 
 @Injectable()
 export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
@@ -11,7 +16,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private processIdCounters = new Map<string, number>();
   private socketServer: Server;
   private updateInterval: NodeJS.Timeout;
-  private socketToCodeMap = new Map<string, string>(); // socketId -> serverCode
+  private socketToCodeMap = new Map<string, string>();
+  private hourMap: Map<string, hourBuffer> = new Map();
+  private currentHour: number = new Date().getHours();
 
   constructor(private readonly serverService: ServerService) {}
 
@@ -42,17 +49,30 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     cpu: number;
     memory: number;
     disk: number;
-    processes: string[];
     status: 'connected' | 'disconnected';
   }, socketId: string) {
     try {
       const server = await this.serverService.findByCode(code);
-      if (!server) {
-        return;
-      }
+      if (!server) return;
 
-      // 소켓 ID와 서버 코드 매핑 저장
       this.socketToCodeMap.set(socketId, code);
+      const now = new Date();
+      const hour = now.getHours();
+
+      console.log(hour, this.currentHour);
+  
+      if (hour !== this.currentHour) {
+        await this.finalizeHour(code);
+        this.currentHour = hour;
+      }
+  
+      const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumMemory: 0, count: 0 };
+      buffer.sumCpu += status.cpu;
+      buffer.sumMemory += status.memory;
+      buffer.count += 1;
+      this.hourMap.set(code, buffer);
+
+      console.log(code, status);
 
       let serverStatus = this.serverMap.get(code);
       if (!serverStatus) {
@@ -66,37 +86,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           processes: [],
           status: 'connected',
           lastUpdate: new Date(),
-          cpuHistory: [0],
-          memoryHistory: [0],
+          cpuHistory: [],
+          memoryHistory: [],
         };
         this.processIdCounters.set(code, 0);
-        this.logger.log(`🆕 새로운 서버 등록: ${server.name} (${code})`);
+        this.logger.log(`새로운 서버 등록: ${server.name} (${code})`);
       }
-
-      // 현재 실행 중인 프로세스들을 stopped 상태로 변경
-      serverStatus.processes.forEach(process => {
-        process.status = 'stopped';
-      });
-
-      // 새로 받은 프로세스들을 running 상태로 설정
-      const processStatuses: ProcessStatus[] = status.processes.map(name => {
-        const existingProcess = serverStatus.processes.find(p => p.name === name);
-        if (existingProcess) {
-          existingProcess.status = 'running';
-          return existingProcess;
-        }
-        return {
-          name,
-          status: 'running'
-        };
-      });
-
-      const newProcessNames = new Set(status.processes);
-      serverStatus.processes = serverStatus.processes
-        .filter(p => !newProcessNames.has(p.name))
-        .concat(processStatuses);
-
-      await this.serverService.updateProcesses(code, serverStatus.processes);
 
       serverStatus.cpu = status.cpu;
       serverStatus.memory = status.memory;
@@ -104,29 +99,47 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
 
-      serverStatus.cpuHistory.push(status.cpu);
-      serverStatus.memoryHistory.push(status.memory);
-      if (serverStatus.cpuHistory.length > 60) serverStatus.cpuHistory.shift();
-      if (serverStatus.memoryHistory.length > 60) serverStatus.memoryHistory.shift();
-
       this.serverMap.set(code, serverStatus);
     } catch (error) {
       this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
     }
   }
 
+  async updateProcesses(code: string, processNames: string[]) {
+    const serverStatus = this.serverMap.get(code);
+    if (!serverStatus) return;
+
+    serverStatus.processes.forEach(p => {
+      p.status = 'stopped';
+    });
+
+    const updatedProcesses: ProcessStatus[] = processNames.map(name => {
+      const existing = serverStatus.processes.find(p => p.name === name);
+      if (existing) {
+        existing.status = 'running';
+        return existing;
+      }
+      return { name, status: 'running' };
+    });
+
+    const updatedNames = new Set(processNames);
+    serverStatus.processes = serverStatus.processes
+      .filter(p => !updatedNames.has(p.name))
+      .concat(updatedProcesses);
+
+    await this.serverService.updateProcesses(code, serverStatus.processes);
+  }
+
   remove(code: string) {
-    const server = this.serverMap.get(code);
-    if (server) {
-      this.serverMap.delete(code);
-      this.processIdCounters.delete(code);
-    }
+    this.serverMap.delete(code);
+    this.processIdCounters.delete(code);
   }
 
   setDisconnected(socketId: string) {
     const serverCode = this.socketToCodeMap.get(socketId);
     if (serverCode) {
       const serverStatus = this.serverMap.get(serverCode);
+      this.finalizeHour(serverCode);
       if (serverStatus) {
         serverStatus.status = 'disconnected';
         serverStatus.processes.forEach(process => {
@@ -136,5 +149,32 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       }
       this.socketToCodeMap.delete(socketId);
     }
+  }
+
+  private async finalizeHour(code: string) {
+    const buffer = this.hourMap.get(code);
+    if (!buffer || buffer.count === 0) return;
+
+    const avgCpu = buffer.sumCpu / buffer.count;
+    const avgMem = buffer.sumMemory / buffer.count;
+
+    this.hourMap.delete(code);
+
+    const server = await this.serverService.findByCode(code);
+    if (!server) return;
+
+    server.cpuHistory = [...(server.cpuHistory ?? []), parseFloat(avgCpu.toFixed(2))];
+    server.memoryHistory = [...(server.memoryHistory ?? []), parseFloat(avgMem.toFixed(2))];
+
+    if (server.cpuHistory.length > 24) server.cpuHistory.shift();
+    if (server.memoryHistory.length > 24) server.memoryHistory.shift();
+
+    await this.serverService.update(server.id, {
+      ...server,
+      cpuHistory: server.cpuHistory,
+      memoryHistory: server.memoryHistory,
+    });
+
+    this.logger.log(`시간대 저장 완료: ${code} - CPU ${avgCpu.toFixed(2)}% / Mem ${avgMem.toFixed(2)}%`);
   }
 }
