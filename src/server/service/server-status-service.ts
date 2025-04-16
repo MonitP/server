@@ -11,6 +11,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private processIdCounters = new Map<string, number>();
   private socketServer: Server;
   private updateInterval: NodeJS.Timeout;
+  private socketToCodeMap = new Map<string, string>(); // socketId -> serverCode
 
   constructor(private readonly serverService: ServerService) {}
 
@@ -42,12 +43,16 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     memory: number;
     disk: number;
     processes: string[];
-  }) {
+    status: 'connected' | 'disconnected';
+  }, socketId: string) {
     try {
       const server = await this.serverService.findByCode(code);
       if (!server) {
         return;
       }
+
+      // 소켓 ID와 서버 코드 매핑 저장
+      this.socketToCodeMap.set(socketId, code);
 
       let serverStatus = this.serverMap.get(code);
       if (!serverStatus) {
@@ -65,25 +70,38 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           memoryHistory: [0],
         };
         this.processIdCounters.set(code, 0);
-        this.logger.log(`새로운 서버 등록: ${server.name} (${code})`);
+        this.logger.log(`🆕 새로운 서버 등록: ${server.name} (${code})`);
       }
 
-      let processIdCounter = this.processIdCounters.get(code) || 0;
+      // 현재 실행 중인 프로세스들을 stopped 상태로 변경
+      serverStatus.processes.forEach(process => {
+        process.status = 'stopped';
+      });
 
-      const processStatuses: ProcessStatus[] = status.processes.map(name => ({
-        id: (processIdCounter++).toString(),
-        name
-      }));
+      // 새로 받은 프로세스들을 running 상태로 설정
+      const processStatuses: ProcessStatus[] = status.processes.map(name => {
+        const existingProcess = serverStatus.processes.find(p => p.name === name);
+        if (existingProcess) {
+          existingProcess.status = 'running';
+          return existingProcess;
+        }
+        return {
+          name,
+          status: 'running'
+        };
+      });
 
-      this.processIdCounters.set(code, processIdCounter);
+      const newProcessNames = new Set(status.processes);
+      serverStatus.processes = serverStatus.processes
+        .filter(p => !newProcessNames.has(p.name))
+        .concat(processStatuses);
 
-      await this.serverService.updateProcesses(code, processStatuses);
+      await this.serverService.updateProcesses(code, serverStatus.processes);
 
       serverStatus.cpu = status.cpu;
       serverStatus.memory = status.memory;
       serverStatus.disk = status.disk;
-      serverStatus.processes = processStatuses;
-      serverStatus.status = 'connected';
+      serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
 
       serverStatus.cpuHistory.push(status.cpu);
@@ -102,6 +120,21 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (server) {
       this.serverMap.delete(code);
       this.processIdCounters.delete(code);
+    }
+  }
+
+  setDisconnected(socketId: string) {
+    const serverCode = this.socketToCodeMap.get(socketId);
+    if (serverCode) {
+      const serverStatus = this.serverMap.get(serverCode);
+      if (serverStatus) {
+        serverStatus.status = 'disconnected';
+        serverStatus.processes.forEach(process => {
+          process.status = 'stopped';
+        });
+        this.logger.log(`서버 연결 끊김: ${serverStatus.name} (${serverCode})`);
+      }
+      this.socketToCodeMap.delete(socketId);
     }
   }
 }

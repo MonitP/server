@@ -46,14 +46,19 @@ export class ServerService {
     }
 
     // 기존 프로세스와 새로운 프로세스 비교
-    const existingProcessNames = new Set(server.processes.map(p => p.name));
-    const newProcesses = processes.filter(p => !existingProcessNames.has(p.name));
+    const existingProcessMap = new Map(server.processes.map(p => [p.name, p]));
+    
+    // 기존 프로세스 업데이트 및 새로운 프로세스 추가
+    processes.forEach(newProcess => {
+      const existingProcess = existingProcessMap.get(newProcess.name);
+      if (existingProcess) {
+        existingProcess.status = newProcess.status;
+      } else {
+        server.processes.push(newProcess);
+      }
+    });
 
-    if (newProcesses.length > 0) {
-      this.logger.log(`새로운 프로세스 발견: 서버=${server.name}, 프로세스=${JSON.stringify(newProcesses)}`);
-      server.processes = [...server.processes, ...newProcesses];
-      await this.serversRepository.save(server);
-    }
+    await this.serversRepository.save(server);
   }
 
   async delete(id: string): Promise<void> {

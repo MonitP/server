@@ -2,6 +2,7 @@ import { Servers } from './entities/server.entity';
 
 export interface ProcessStatus {
   name: string;
+  status: 'running' | 'stopped';
 }
 
 export interface ServerStatus {
@@ -12,7 +13,7 @@ export interface ServerStatus {
   memory: number;
   disk: number;
   processes: ProcessStatus[];
-  status: 'connected' | 'disconnected';
+  status: 'connected' | 'disconnected' | 'on' | 'off';
   lastUpdate: Date;
   cpuHistory: number[];
   memoryHistory: number[];
