@@ -33,13 +33,15 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         cpu: string;
         ram: { usage: string };
         disk: { usage: string };
+        gpu: { usage: string };
       };
     }) => {
       const { code, status } = data;
       await this.statusService.update(code, {
         cpu: parseFloat(status.cpu),
-        memory: parseFloat(status.ram.usage),
+        ram: parseFloat(status.ram.usage),
         disk: parseFloat(status.disk.usage),
+        gpu: parseFloat(status.gpu.usage),
         status: 'connected',
       }, client.id);
     });

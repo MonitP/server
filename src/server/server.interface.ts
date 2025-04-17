@@ -10,13 +10,14 @@ export interface ServerStatus {
   name: string;
   code: string;
   cpu: number;
-  memory: number;
+  ram: number;
   disk: number;
+  gpu: number;
   processes: ProcessStatus[];
   status: 'connected' | 'disconnected' | 'on' | 'off';
   lastUpdate: Date;
   cpuHistory: number[];
-  memoryHistory: number[];
+  ramHistory: number[];
 }
 
 

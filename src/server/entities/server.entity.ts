@@ -25,7 +25,7 @@ export class Servers {
   cpuHistory: number[];
 
   @Column({ type: 'json', nullable: true })
-  memoryHistory: number[];
+  ramHistory: number[];
 
   @CreateDateColumn()
   createdAt: Date;

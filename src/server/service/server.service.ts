@@ -19,7 +19,7 @@ export class ServerService {
       ...createServerDto,
       processes: [],
       cpuHistory: [0],
-      memoryHistory: [0],
+      ramHistory: [0],
     });
     return this.serversRepository.save(server);
   }

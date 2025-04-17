@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 
 type hourBuffer = {
   sumCpu: number;
-  sumMemory: number;
+  sumRam: number;
   count: number;
 };
 
@@ -47,8 +47,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
   async update(code: string, status: {
     cpu: number;
-    memory: number;
+    ram: number;
     disk: number;
+    gpu: number;
     status: 'connected' | 'disconnected';
   }, socketId: string) {
     try {
@@ -66,9 +67,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         this.currentHour = hour;
       }
   
-      const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumMemory: 0, count: 0 };
+      const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumRam: 0, count: 0 };
       buffer.sumCpu += status.cpu;
-      buffer.sumMemory += status.memory;
+      buffer.sumRam += status.ram;
       buffer.count += 1;
       this.hourMap.set(code, buffer);
 
@@ -81,20 +82,21 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           name: server.name,
           code: server.code,
           cpu: 0,
-          memory: 0,
+          ram: 0,
           disk: 0,
+          gpu: 0,
           processes: [],
           status: 'connected',
           lastUpdate: new Date(),
           cpuHistory: [],
-          memoryHistory: [],
+          ramHistory: [],
         };
         this.processIdCounters.set(code, 0);
         this.logger.log(`새로운 서버 등록: ${server.name} (${code})`);
       }
 
       serverStatus.cpu = status.cpu;
-      serverStatus.memory = status.memory;
+      serverStatus.ram = status.ram;
       serverStatus.disk = status.disk;
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
@@ -154,27 +156,33 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private async finalizeHour(code: string) {
     const buffer = this.hourMap.get(code);
     if (!buffer || buffer.count === 0) return;
-
+  
     const avgCpu = buffer.sumCpu / buffer.count;
-    const avgMem = buffer.sumMemory / buffer.count;
-
+    const avgMem = buffer.sumRam / buffer.count;
+  
     this.hourMap.delete(code);
-
+  
     const server = await this.serverService.findByCode(code);
     if (!server) return;
-
-    server.cpuHistory = [...(server.cpuHistory ?? []), parseFloat(avgCpu.toFixed(2))];
-    server.memoryHistory = [...(server.memoryHistory ?? []), parseFloat(avgMem.toFixed(2))];
-
-    if (server.cpuHistory.length > 24) server.cpuHistory.shift();
-    if (server.memoryHistory.length > 24) server.memoryHistory.shift();
-
+    
+    const hourIndex = (this.currentHour + 23) % 24;
+  
+    if (!Array.isArray(server.cpuHistory) || server.cpuHistory.length !== 24) {
+      server.cpuHistory = new Array(24).fill(null);
+    }
+    if (!Array.isArray(server.ramHistory) || server.ramHistory.length !== 24) {
+      server.ramHistory = new Array(24).fill(null);
+    }
+  
+    server.cpuHistory[hourIndex] = parseFloat(avgCpu.toFixed(2));
+    server.ramHistory[hourIndex] = parseFloat(avgMem.toFixed(2));
+  
     await this.serverService.update(server.id, {
-      ...server,
       cpuHistory: server.cpuHistory,
-      memoryHistory: server.memoryHistory,
+      ramHistory: server.ramHistory,
     });
-
-    this.logger.log(`시간대 저장 완료: ${code} - CPU ${avgCpu.toFixed(2)}% / Mem ${avgMem.toFixed(2)}%`);
+  
+    this.logger.log(`시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, Mem ${avgMem.toFixed(2)}%`);
   }
+  
 }
