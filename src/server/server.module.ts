@@ -5,11 +5,15 @@ import { Servers } from './entities/server.entity';
 import { ServerController } from './controllers/server.controller';
 import { ServerGateway } from './gateway';
 import { ServerStatusService } from './service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Servers])],
+  imports: [
+    TypeOrmModule.forFeature([Servers]),
+    NotificationModule,
+  ],
   controllers: [ServerController],
   providers: [ServerService, ServerGateway, ServerStatusService],
   exports: [ServerService, ServerStatusService],
 })
-export class ServerModule {} 
+export class ServerModule {}

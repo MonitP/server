@@ -26,7 +26,7 @@ export class ServerService {
 
   async findAll(): Promise<Partial<Servers>[]> {
     return this.serversRepository.find({
-      select: ['id', 'name', 'code','ip', 'port', 'processes'],
+      select: ['id', 'name', 'code','ip', 'port', 'processes', 'cpuHistory', 'ramHistory'],
     });
   }
 

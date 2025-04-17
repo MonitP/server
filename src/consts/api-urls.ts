@@ -5,4 +5,7 @@ export const API_URLS = {
     delete: '/:id',
     update: '/:id',
   },
+  notification: {
+    base: '/api/notifications',
+  },
 } as const;

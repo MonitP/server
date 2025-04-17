@@ -25,8 +25,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.updateInterval = setInterval(() => {
       if (this.socketServer) {
-        const data = this.getAll();
-        this.socketServer.emit('update', data);
+        const connectedServers = Array.from(this.serverMap.values()).filter(
+          (s) => s.status === 'connected'
+        );
+        this.socketServer.emit('update', connectedServers);
+        console.log('Data : ', connectedServers);
       }
     }, 5000);
   }
@@ -45,13 +48,17 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     return Array.from(this.serverMap.values());
   }
 
-  async update(code: string, status: {
-    cpu: number;
-    ram: number;
-    disk: number;
-    gpu: number;
-    status: 'connected' | 'disconnected';
-  }, socketId: string) {
+  async update(
+    code: string,
+    status: {
+      cpu: number;
+      ram: number;
+      disk: number;
+      gpu: number;
+      status: 'connected' | 'disconnected';
+    },
+    socketId: string
+  ) {
     try {
       const server = await this.serverService.findByCode(code);
       if (!server) return;
@@ -61,12 +68,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       const hour = now.getHours();
 
       console.log(hour, this.currentHour);
-  
+
       if (hour !== this.currentHour) {
         await this.finalizeHour(code);
         this.currentHour = hour;
       }
-  
+
       const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumRam: 0, count: 0 };
       buffer.sumCpu += status.cpu;
       buffer.sumRam += status.ram;
@@ -98,10 +105,36 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.cpu = status.cpu;
       serverStatus.ram = status.ram;
       serverStatus.disk = status.disk;
+      serverStatus.gpu = status.gpu;
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
 
-      this.serverMap.set(code, serverStatus);
+      const avgCpu = buffer.sumCpu / buffer.count;
+      const avgRam = buffer.sumRam / buffer.count;
+
+      const cpuHistory = Array.isArray(server.cpuHistory) && server.cpuHistory.length === 24
+        ? [...server.cpuHistory]
+        : new Array(24).fill(null);
+
+      const ramHistory = Array.isArray(server.ramHistory) && server.ramHistory.length === 24
+        ? [...server.ramHistory]
+        : new Array(24).fill(null);
+
+      cpuHistory[this.currentHour] = parseFloat(avgCpu.toFixed(2));
+      ramHistory[this.currentHour] = parseFloat(avgRam.toFixed(2));
+
+      this.serverMap.set(code, {
+        ...server,
+        cpu: status.cpu,
+        ram: status.ram,
+        disk: status.disk,
+        gpu: status.gpu,
+        processes: serverStatus?.processes ?? [],
+        status: status.status,
+        lastUpdate: new Date(),
+        cpuHistory,
+        ramHistory,
+      });
     } catch (error) {
       this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
     }
@@ -111,12 +144,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     const serverStatus = this.serverMap.get(code);
     if (!serverStatus) return;
 
-    serverStatus.processes.forEach(p => {
+    serverStatus.processes.forEach((p) => {
       p.status = 'stopped';
     });
 
-    const updatedProcesses: ProcessStatus[] = processNames.map(name => {
-      const existing = serverStatus.processes.find(p => p.name === name);
+    const updatedProcesses: ProcessStatus[] = processNames.map((name) => {
+      const existing = serverStatus.processes.find((p) => p.name === name);
       if (existing) {
         existing.status = 'running';
         return existing;
@@ -126,7 +159,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
     const updatedNames = new Set(processNames);
     serverStatus.processes = serverStatus.processes
-      .filter(p => !updatedNames.has(p.name))
+      .filter((p) => !updatedNames.has(p.name))
       .concat(updatedProcesses);
 
     await this.serverService.updateProcesses(code, serverStatus.processes);
@@ -137,52 +170,70 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     this.processIdCounters.delete(code);
   }
 
-  setDisconnected(socketId: string) {
+  setDisconnected(socketId: string): string | null {
     const serverCode = this.socketToCodeMap.get(socketId);
     if (serverCode) {
       const serverStatus = this.serverMap.get(serverCode);
       this.finalizeHour(serverCode);
       if (serverStatus) {
         serverStatus.status = 'disconnected';
-        serverStatus.processes.forEach(process => {
+        serverStatus.processes.forEach((process) => {
           process.status = 'stopped';
         });
         this.logger.log(`서버 연결 끊김: ${serverStatus.name} (${serverCode})`);
       }
       this.socketToCodeMap.delete(socketId);
+      return serverCode; 
     }
+    return null;
   }
+  
 
   private async finalizeHour(code: string) {
     const buffer = this.hourMap.get(code);
     if (!buffer || buffer.count === 0) return;
-  
+
     const avgCpu = buffer.sumCpu / buffer.count;
     const avgMem = buffer.sumRam / buffer.count;
-  
+
     this.hourMap.delete(code);
-  
+
     const server = await this.serverService.findByCode(code);
     if (!server) return;
-    
-    const hourIndex = (this.currentHour + 23) % 24;
-  
+
+    const hourIndex = this.currentHour;
+
     if (!Array.isArray(server.cpuHistory) || server.cpuHistory.length !== 24) {
       server.cpuHistory = new Array(24).fill(null);
     }
     if (!Array.isArray(server.ramHistory) || server.ramHistory.length !== 24) {
       server.ramHistory = new Array(24).fill(null);
     }
-  
+
     server.cpuHistory[hourIndex] = parseFloat(avgCpu.toFixed(2));
     server.ramHistory[hourIndex] = parseFloat(avgMem.toFixed(2));
-  
+
     await this.serverService.update(server.id, {
       cpuHistory: server.cpuHistory,
       ramHistory: server.ramHistory,
     });
-  
-    this.logger.log(`시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, Mem ${avgMem.toFixed(2)}%`);
+
+    const serverStatus = this.serverMap.get(code);
+    this.serverMap.set(code, {
+      ...server,
+      cpu: serverStatus?.cpu ?? 0,
+      ram: serverStatus?.ram ?? 0,
+      disk: serverStatus?.disk ?? 0,
+      gpu: serverStatus?.gpu ?? 0,
+      processes: serverStatus?.processes ?? [],
+      status: serverStatus?.status ?? 'disconnected',
+      lastUpdate: new Date(),
+      cpuHistory: server.cpuHistory,
+      ramHistory: server.ramHistory,
+    });
+
+    this.logger.log(
+      `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, Mem ${avgMem.toFixed(2)}%`
+    );
   }
-  
 }

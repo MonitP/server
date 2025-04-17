@@ -6,7 +6,9 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { ServerStatusService } from '../service';
+import { ServerService, ServerStatusService } from '../service';
+import { NotificationService } from 'src/notification/service';
+import { NotificationType } from 'src/notification/const/notification-type.enum';
 
 @Injectable()
 @WebSocketGateway({
@@ -18,7 +20,11 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly statusService: ServerStatusService) {}
+  constructor(
+    private readonly statusService: ServerStatusService,
+    private readonly notificationService: NotificationService,
+    private readonly serverService: ServerService,
+  ) {}
 
   onModuleInit() {
     this.statusService.setSocketServer(this.server);
@@ -44,6 +50,18 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         gpu: parseFloat(status.gpu.usage),
         status: 'connected',
       }, client.id);
+
+      const server = await this.serverService.findByCode(code);
+      if (server) {
+        await this.notificationService.create({
+          serverCode: server.code,
+          serverName: server.name,
+          type: NotificationType.CONNECTED,
+          timestamp: new Date(),
+        });
+        console.log("Jehee test")
+        // this.server.emit('notifications');
+      }
     });
 
     client.on('update-process', async (data: {
@@ -54,8 +72,20 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     });
   }
 
-  handleDisconnect(client: Socket) {
+  async handleDisconnect(client: Socket) {
     console.log(`server disconnected: ${client.id}`);
-    this.statusService.setDisconnected(client.id);
+    const code = this.statusService.setDisconnected(client.id);
+    if (!code) return;
+
+    const server = await this.serverService.findByCode(code);
+    if (server) {
+      await this.notificationService.create({
+        serverCode: server.code,
+        serverName: server.name,
+        type: NotificationType.DISCONNECTED,
+        timestamp: new Date(),
+      });
+      this.server.emit('notifications');
+    }
   }
 }
