@@ -32,4 +32,7 @@ export class Servers {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'varchar', nullable: true })
+  historyDate: string; 
 } 

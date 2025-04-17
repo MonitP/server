@@ -192,32 +192,40 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private async finalizeHour(code: string) {
     const buffer = this.hourMap.get(code);
     if (!buffer || buffer.count === 0) return;
-
+  
     const avgCpu = buffer.sumCpu / buffer.count;
-    const avgMem = buffer.sumRam / buffer.count;
-
+    const avgRam = buffer.sumRam / buffer.count;
+  
     this.hourMap.delete(code);
-
+  
     const server = await this.serverService.findByCode(code);
     if (!server) return;
-
+  
     const hourIndex = this.currentHour;
-
-    if (!Array.isArray(server.cpuHistory) || server.cpuHistory.length !== 24) {
+  
+    const todayString = new Date().toISOString().slice(0, 10);
+  
+    if (!server.historyDate) {
+      server.historyDate = todayString;
       server.cpuHistory = new Array(24).fill(null);
-    }
-    if (!Array.isArray(server.ramHistory) || server.ramHistory.length !== 24) {
       server.ramHistory = new Array(24).fill(null);
     }
-
+  
+    if (server.historyDate !== todayString) {
+      server.cpuHistory = new Array(24).fill(null);
+      server.ramHistory = new Array(24).fill(null);
+      server.historyDate = todayString;
+    }
+  
     server.cpuHistory[hourIndex] = parseFloat(avgCpu.toFixed(2));
-    server.ramHistory[hourIndex] = parseFloat(avgMem.toFixed(2));
-
+    server.ramHistory[hourIndex] = parseFloat(avgRam.toFixed(2));
+  
     await this.serverService.update(server.id, {
       cpuHistory: server.cpuHistory,
       ramHistory: server.ramHistory,
+      historyDate: server.historyDate,
     });
-
+  
     const serverStatus = this.serverMap.get(code);
     this.serverMap.set(code, {
       ...server,
@@ -231,9 +239,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       cpuHistory: server.cpuHistory,
       ramHistory: server.ramHistory,
     });
-
+  
     this.logger.log(
-      `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, Mem ${avgMem.toFixed(2)}%`
+      `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, RAM ${avgRam.toFixed(2)}%`
     );
   }
+  
 }
