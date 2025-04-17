@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
 import { Notification } from '../entities/notification.entity';
 import { CreateNotificationDto } from '../dto';
+import { NotificationType } from '../const/notification-type.enum';
 
 @Injectable()
 export class NotificationService {
@@ -12,8 +13,22 @@ export class NotificationService {
   ) {}
 
   async create(dto: CreateNotificationDto): Promise<Notification | null> {
-    const duplicate = await this.isDuplicate(dto.type, dto.serverCode);
-    if (duplicate) {
+    const start = new Date(dto.timestamp);
+    start.setMilliseconds(0);
+  
+    const end = new Date(start);
+    end.setSeconds(start.getSeconds() + 1);
+  
+    const exists = await this.notificationRepo.findOne({
+      where: {
+        serverCode: dto.serverCode,
+        type: dto.type,
+        timestamp: MoreThan(start),
+      },
+      order: { timestamp: 'ASC' },
+    });
+  
+    if (exists && exists.timestamp < end) {
       return null;
     }
   
@@ -21,7 +36,7 @@ export class NotificationService {
     return this.notificationRepo.save(entity);
   }
   
-
+  
   async findAll(): Promise<Notification[]> {
     return this.notificationRepo.find({ order: { timestamp: 'DESC' } });
   }

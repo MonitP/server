@@ -33,6 +33,13 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   handleConnection(client: Socket) {
     console.log(`server connected: ${client.id}`);
 
+    client.on('init', async (data: { code: string }) => {
+      console.log("init")
+      const code = data.code;
+      await this.emitNotification(code, NotificationType.CONNECTED);
+      this.server.emit('notifications');
+    });
+
     client.on('update-status', async (data: {
       code: string;
       status: {
@@ -50,18 +57,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         gpu: parseFloat(status.gpu.usage),
         status: 'connected',
       }, client.id);
-
-      const server = await this.serverService.findByCode(code);
-      if (server) {
-        await this.notificationService.create({
-          serverCode: server.code,
-          serverName: server.name,
-          type: NotificationType.CONNECTED,
-          timestamp: new Date(),
-        });
-        console.log("Jehee test")
-        // this.server.emit('notifications');
-      }
     });
 
     client.on('update-process', async (data: {
@@ -77,15 +72,20 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     const code = this.statusService.setDisconnected(client.id);
     if (!code) return;
 
+    await this.emitNotification(code, NotificationType.DISCONNECTED);
+  }
+
+  private async emitNotification(code: string, type: NotificationType) {
     const server = await this.serverService.findByCode(code);
-    if (server) {
-      await this.notificationService.create({
-        serverCode: server.code,
-        serverName: server.name,
-        type: NotificationType.DISCONNECTED,
-        timestamp: new Date(),
-      });
-      this.server.emit('notifications');
-    }
+    if (!server) return;
+  
+    await this.notificationService.create({
+      serverCode: server.code,
+      serverName: server.name,
+      type,
+      timestamp: new Date(),
+    });
+  
+    this.server.emit('notifications');
   }
 }
