@@ -1,4 +1,3 @@
-// app.module.ts
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServerModule } from './server/server.module';
