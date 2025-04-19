@@ -41,21 +41,21 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     });
 
     client.on('command', async (data: { 
-      serverId: string; 
+      serverCode: string; 
       command: string;
       timestamp: string;
     }) => {
-      const { serverId, command, timestamp } = data;
-      console.log(`명령어 수신: serverId=${serverId}, command=${command}, timestamp=${timestamp}`);
+      const { serverCode, command, timestamp } = data;
+      console.log(`명령어 수신: serverCode=${serverCode}, command=${command}, timestamp=${timestamp}`);
       this.server.emit('execute_command', {
-        serverId,
+        serverCode,
         command,
         timestamp
       });
     });
 
     client.on('command_result', (data: {
-      serverId: string;
+      serverCode: string;
       command: string;
       result: string;
     }) => {
