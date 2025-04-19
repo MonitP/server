@@ -135,27 +135,29 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async updateProcesses(code: string, processNames: string[]) {
+  async updateProcesses(code: string, process: {
+    code: string;
+    version: string;
+    name: string;
+  }) {
     const serverStatus = this.serverMap.get(code);
     if (!serverStatus) return;
 
-    serverStatus.processes.forEach((p) => {
-      p.status = 'stopped';
-    });
-
-    const updatedProcesses: ProcessStatus[] = processNames.map((name) => {
-      const existing = serverStatus.processes.find((p) => p.name === name);
-      if (existing) {
-        existing.status = 'running';
-        return existing;
-      }
-      return { name, status: 'running' };
-    });
-
-    const updatedNames = new Set(processNames);
-    serverStatus.processes = serverStatus.processes
-      .filter((p) => !updatedNames.has(p.name))
-      .concat(updatedProcesses);
+    // 동일한 name을 가진 프로세스가 있는지 확인
+    const existingProcess = serverStatus.processes.find(p => p.name === process.name);
+    
+    if (!existingProcess) {
+      // 새로운 프로세스 추가
+      serverStatus.processes.push({
+        name: process.name,
+        version: process.version,
+        status: 'running'
+      });
+    } else {
+      // 기존 프로세스 상태 업데이트
+      existingProcess.status = 'running';
+      existingProcess.version = process.version;
+    }
 
     await this.serverService.updateProcesses(code, serverStatus.processes);
   }

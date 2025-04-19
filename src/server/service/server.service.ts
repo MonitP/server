@@ -45,6 +45,10 @@ export class ServerService {
       throw new NotFoundException('서버를 찾을 수 없습니다.');
     }
 
+    if (!server.processes) {
+      server.processes = [];
+    }
+
     const existingProcessMap = new Map(server.processes.map(p => [p.name, p]));
     
     processes.forEach(newProcess => {

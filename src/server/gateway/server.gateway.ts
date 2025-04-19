@@ -84,9 +84,11 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
     client.on('update-process', async (data: {
       code: string;
-      processes: string[];
+      version: string;
+      name: string;
     }) => {
-      await this.statusService.updateProcesses(data.code, data.processes);
+      console.log("update-process ", data);
+      await this.statusService.updateProcesses(data.code, data);
     });
   }
 

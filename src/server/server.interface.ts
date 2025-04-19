@@ -2,6 +2,7 @@ import { Servers } from './entities/server.entity';
 
 export interface ProcessStatus {
   name: string;
+  version: string;
   status: 'running' | 'stopped';
 }
 
