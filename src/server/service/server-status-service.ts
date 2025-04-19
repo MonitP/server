@@ -29,7 +29,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           (s) => s.status === 'connected'
         );
         this.socketServer.emit('update', connectedServers);
-        console.log('Data : ', connectedServers);
       }
     }, 5000);
   }
@@ -67,8 +66,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       const now = new Date();
       const hour = now.getHours();
 
-      console.log(hour, this.currentHour);
-
       if (hour !== this.currentHour) {
         await this.finalizeHour(code);
         this.currentHour = hour;
@@ -79,8 +76,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       buffer.sumRam += status.ram;
       buffer.count += 1;
       this.hourMap.set(code, buffer);
-
-      console.log(code, status);
 
       let serverStatus = this.serverMap.get(code);
       if (!serverStatus) {
@@ -187,7 +182,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }
     return null;
   }
-  
+
+  getServerCodeBySocketId(socketId: string): string | undefined {
+    return this.socketToCodeMap.get(socketId);
+  }
 
   private async finalizeHour(code: string) {
     const buffer = this.hourMap.get(code);

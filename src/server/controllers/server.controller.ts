@@ -18,7 +18,7 @@ export class ServerController {
     return server;
   }
 
-  @Get(API_URLS.server.base)
+  @Get()
   async findAll(): Promise<Partial<Servers>[]> {
     this.logger.log('서버 리스트 요청');
     const servers = await this.serversService.findAll();
