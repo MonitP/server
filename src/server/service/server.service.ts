@@ -25,9 +25,14 @@ export class ServerService {
   }
 
   async findAll(): Promise<Partial<Servers>[]> {
-    return this.serversRepository.find({
+    const servers = await this.serversRepository.find({
       select: ['id', 'name', 'code','ip', 'port', 'processes', 'cpuHistory', 'ramHistory'],
     });
+
+    return servers.map(server => ({
+      ...server,
+      processes: server.processes?.sort((a, b) => b.name.localeCompare(a.name)) || []
+    }));
   }
 
   async findOne(id: string): Promise<Servers | null> {
@@ -92,5 +97,30 @@ export class ServerService {
     
     this.logger.log(`서버 업데이트 성공: ID=${id}`);
     return updatedServer;
+  }
+
+  async deleteProcess(code: string, processName: string): Promise<void> {
+    this.logger.log(`프로세스 삭제 시도: code=${code}, processName=${processName}`);
+    
+    const server = await this.findByCode(code);
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: code=${code}`);
+      throw new NotFoundException('서버를 찾을 수 없습니다.');
+    }
+
+    if (!server.processes) {
+      server.processes = [];
+    }
+
+    const processIndex = server.processes.findIndex(p => p.name === processName);
+    if (processIndex === -1) {
+      this.logger.error(`프로세스를 찾을 수 없음: processName=${processName}`);
+      throw new NotFoundException('프로세스를 찾을 수 없습니다.');
+    }
+
+    server.processes.splice(processIndex, 1);
+    await this.serversRepository.save(server);
+    
+    this.logger.log(`프로세스 삭제 성공: code=${code}, processName=${processName}`);
   }
 } 

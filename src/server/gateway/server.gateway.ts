@@ -33,9 +33,9 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   handleConnection(client: Socket) {
     console.log(`server connected: ${client.id}`);
 
-    client.on('init', async (data: { code: string }) => {
-      console.log("init", data.code);
-      const code = data.code;
+    client.on('init', async (data: { serverCode: string }) => {
+      console.log("init", data.serverCode);
+      const code = data.serverCode;
       await this.emitNotification(code, NotificationType.CONNECTED);
       this.server.emit('notifications');
     });
@@ -83,12 +83,12 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     });
 
     client.on('update-process', async (data: {
-      code: string;
+      serverCode: string;
       version: string;
       name: string;
     }) => {
       console.log("update-process ", data);
-      await this.statusService.updateProcesses(data.code, data);
+      await this.statusService.updateProcesses(data.serverCode, data);
     });
   }
 

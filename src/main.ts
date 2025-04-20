@@ -8,14 +8,14 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
   app.useGlobalInterceptors(new ResponseInterceptor());
 
-  await app.listen(process.env.PORT ?? 8000);
-  logger.log(`서버가 ${process.env.PORT ?? 8000} 포트에서 실행 중입니다.`);
+  await app.listen(process.env.PORT ?? 14001);
+  logger.log(`서버가 ${process.env.PORT ?? 14001} 포트에서 실행 중입니다.`);
 }
 bootstrap();

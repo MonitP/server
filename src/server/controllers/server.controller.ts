@@ -40,4 +40,14 @@ export class ServerController {
     this.logger.log(`서버 업데이트 완료: ${JSON.stringify(server)}`);
     return server;
   }
+
+  @Delete(API_URLS.server.deleteProcess)
+  async deleteProcess(
+    @Param('code') code: string,
+    @Param('processName') processName: string,
+  ): Promise<void> {
+    this.logger.log(`프로세스 삭제 요청: code=${code}, processName=${processName}`);
+    await this.serversService.deleteProcess(code, processName);
+    this.logger.log(`프로세스 삭제 완료: code=${code}, processName=${processName}`);
+  }
 }

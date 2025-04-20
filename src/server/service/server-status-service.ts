@@ -135,31 +135,45 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async updateProcesses(code: string, process: {
-    code: string;
+  async updateProcesses(serverCode: string, process: {
+    serverCode: string;
     version: string;
     name: string;
   }) {
-    const serverStatus = this.serverMap.get(code);
+    const serverStatus = this.serverMap.get(serverCode);
     if (!serverStatus) return;
 
-    // 동일한 name을 가진 프로세스가 있는지 확인
+    const server = await this.serverService.findByCode(serverCode);
+    if (server && server.processes) {
+      const runningProcesses = new Map(
+        serverStatus.processes
+          .filter(p => p.status === 'running')
+          .map(p => [p.name, p])
+      );
+
+      serverStatus.processes = server.processes.map(dbProcess => {
+        const runningProcess = runningProcesses.get(dbProcess.name);
+        return {
+          name: dbProcess.name,
+          version: runningProcess?.version ?? dbProcess.version,
+          status: runningProcess?.status ?? 'stopped'
+        };
+      });
+    }
+
     const existingProcess = serverStatus.processes.find(p => p.name === process.name);
-    
-    if (!existingProcess) {
-      // 새로운 프로세스 추가
+    if (existingProcess) {
+      existingProcess.status = 'running';
+      existingProcess.version = process.version;
+    } else {
       serverStatus.processes.push({
         name: process.name,
         version: process.version,
         status: 'running'
       });
-    } else {
-      // 기존 프로세스 상태 업데이트
-      existingProcess.status = 'running';
-      existingProcess.version = process.version;
     }
 
-    await this.serverService.updateProcesses(code, serverStatus.processes);
+    await this.serverService.updateProcesses(serverCode, serverStatus.processes);
   }
 
   remove(code: string) {
@@ -245,4 +259,17 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     );
   }
   
+  async deleteProcess(code: string, processName: string): Promise<void> {
+    const serverStatus = this.serverMap.get(code);
+    if (!serverStatus) return;
+
+    // serverMap에서 프로세스 삭제
+    const processIndex = serverStatus.processes.findIndex(p => p.name === processName);
+    if (processIndex !== -1) {
+      serverStatus.processes.splice(processIndex, 1);
+    }
+
+    // DB에서 프로세스 삭제
+    await this.serverService.deleteProcess(code, processName);
+  }
 }

@@ -4,6 +4,7 @@ export const API_URLS = {
     create: '/create',
     delete: '/:id',
     update: '/:id',
+    deleteProcess: '/:code/processes/:processName',
   },
   notification: {
     base: '/api/notifications',
