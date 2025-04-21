@@ -30,7 +30,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         );
         this.socketServer.emit('update', connectedServers);
       }
-    }, 5000);
+    }, 3000);
   }
 
   onModuleDestroy() {

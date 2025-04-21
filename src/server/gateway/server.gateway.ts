@@ -20,6 +20,9 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   @WebSocketServer()
   server: Server;
 
+  private lastCommandResultKey: string | null = null;
+  private processingCommand: string | null = null;
+
   constructor(
     private readonly statusService: ServerStatusService,
     private readonly notificationService: NotificationService,
@@ -59,7 +62,17 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       command: string;
       result: string;
     }) => {
-      this.server.emit('command_show', data);
+      const eventKey = `${data.serverCode}_${data.command}`;
+      
+      if (!this.processingCommand || this.processingCommand !== eventKey) {
+        this.processingCommand = eventKey;
+        console.log("command_show ", data);
+        this.server.emit('command_show', data);
+        
+        setTimeout(() => {
+          this.processingCommand = null;
+        }, 1000);
+      }
     });
     
 
@@ -74,7 +87,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }) => {
       const { code, status } = data;
       await this.statusService.update(code, {
-        cpu: parseFloat(status.cpu),
+        cpu: parseFloat(status.cpu),  
         ram: parseFloat(status.ram.usage),
         disk: parseFloat(status.disk.usage),
         gpu: parseFloat(status.gpu.usage),
@@ -87,7 +100,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       version: string;
       name: string;
     }) => {
-      console.log("update-process ", data);
+      // console.log("update-process ", data);
       await this.statusService.updateProcesses(data.serverCode, data);
     });
   }
