@@ -140,17 +140,22 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     version: string;
     name: string;
   }) {
-    const serverStatus = this.serverMap.get(serverCode);
-    if (!serverStatus) return;
-
+    if (serverCode !== 'MS00013-00') {
+      const serverStatus = this.serverMap.get(serverCode);
+      if (!serverStatus) return;
+    }
+  
     const server = await this.serverService.findByCode(serverCode);
     if (server && server.processes) {
+      const serverStatus = this.serverMap.get(serverCode);
+      if (!serverStatus) return;
+  
       const runningProcesses = new Map(
         serverStatus.processes
           .filter(p => p.status === 'running')
           .map(p => [p.name, p])
       );
-
+  
       serverStatus.processes = server.processes.map(dbProcess => {
         const runningProcess = runningProcesses.get(dbProcess.name);
         return {
@@ -160,7 +165,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         };
       });
     }
-
+  
+    const serverStatus = this.serverMap.get(serverCode);
+    if (!serverStatus) return;
+  
     const existingProcess = serverStatus.processes.find(p => p.name === process.name);
     if (existingProcess) {
       existingProcess.status = 'running';
@@ -172,9 +180,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         status: 'running'
       });
     }
-
+  
     await this.serverService.updateProcesses(serverCode, serverStatus.processes);
   }
+  
 
   remove(code: string) {
     this.serverMap.delete(code);
