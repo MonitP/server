@@ -28,12 +28,18 @@ export class ServerService {
     const servers = await this.serversRepository.find({
       select: ['id', 'name', 'code','ip', 'port', 'processes', 'cpuHistory', 'ramHistory'],
     });
-
+  
     return servers.map(server => ({
       ...server,
-      processes: server.processes?.sort((a, b) => b.name.localeCompare(a.name)) || []
+      processes: server.processes?.filter(p => p?.name)
+        .map(p => ({
+          ...p,
+          status: p.status ?? 'stopped',
+        }))
+        .sort((a, b) => (b.name || '').localeCompare(a.name || '')) || []
     }));
   }
+  
 
   async findOne(id: string): Promise<Servers | null> {
     return this.serversRepository.findOne({ where: { id } });
@@ -46,8 +52,7 @@ export class ServerService {
   async updateProcesses(code: string, processes: ProcessStatus[]): Promise<void> {
     const server = await this.findByCode(code);
     if (!server) {
-      this.logger.error(`서버를 찾을 수 없음: code=${code}`);
-      throw new NotFoundException('서버를 찾을 수 없습니다.');
+      return;
     }
 
     if (!server.processes) {

@@ -37,8 +37,13 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     console.log(`server connected: ${client.id}`);
 
     client.on('init', async (data: { serverCode: string }) => {
-      console.log("init", data.serverCode);
       const code = data.serverCode;
+
+      const serverExists = await this.serverService.findByCode(code);
+      if (!serverExists) {
+        return;
+      }
+
       await this.emitNotification(code, NotificationType.CONNECTED);
       this.server.emit('notifications');
     });
@@ -86,8 +91,13 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       };
     }) => {
       const { code, status } = data;
+
+      const serverExists = await this.serverService.findByCode(code);
+      if (!serverExists) {
+        return;
+      }
+
       if (!status || !status.cpu || !status.ram || !status.disk || !status.gpu) {
-        console.error('Invalid status data received:', data);
         return;
       }
       await this.statusService.update(code, {
@@ -102,11 +112,18 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     client.on('update-process', async (data: {
       serverCode: string;
       version: string;
-      name: string;
+      name?: string; // name 빠질 수도 있음
     }) => {
-      console.log("update-process ", data);
+      const serverExists = await this.serverService.findByCode(data.serverCode);
+      if (!serverExists) {
+        // console.warn('[경고] 존재하지 않는 서버:', data.serverCode);
+        return;
+      }
+    
+      // 정상 name 있는 프로세스만 반영
       await this.statusService.updateProcesses(data.serverCode, data);
     });
+    
   }
 
   async handleDisconnect(client: Socket) {
