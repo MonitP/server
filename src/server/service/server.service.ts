@@ -34,7 +34,7 @@ export class ServerService {
       processes: server.processes?.filter(p => p?.name)
         .map(p => ({
           ...p,
-          status: p.status ?? 'stopped',
+          status: 'stopped' as const
         }))
         .sort((a, b) => (b.name || '').localeCompare(a.name || '')) || []
     }));
