@@ -4,6 +4,7 @@ import { ServerModule } from './server/server.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerMiddleware } from './app.middleware';
 import { NotificationModule } from './notification/notification.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationModule } from './notification/notification.module';
     }),
     ServerModule,
     NotificationModule,
+    MailModule,
   ],
   controllers: [],
   providers: [],
