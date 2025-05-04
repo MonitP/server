@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
 import { NotificationService } from '../service/notification.service';
 import { API_URLS } from 'src/consts/api-urls';
 import { CreateNotificationDto } from '../dto';
@@ -25,5 +25,15 @@ export class NotificationController {
   @Post('read-all')
   async markAllRead() {
     return this.notificationService.markAllAsRead();
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string) {
+    return this.notificationService.delete(Number(id));
+  }
+
+  @Delete()
+  async deleteAll() {
+    return this.notificationService.deleteAll();
   }
 }

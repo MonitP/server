@@ -49,4 +49,12 @@ export class NotificationService {
     weekAgo.setDate(weekAgo.getDate() - 7);
     await this.notificationRepo.delete({ timestamp: LessThan(weekAgo) });
   }
+
+  async delete(id: number): Promise<void> {
+    await this.notificationRepo.delete(id);
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.notificationRepo.delete({});
+  }
 }
