@@ -100,27 +100,29 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       if (!status || !status.cpu || !status.ram || !status.disk || !status.gpu) {
         return;
       }
+
+      const currentServerStatus = this.statusService.getServerCodeBySocketId(client.id);
+      const serverStatus = currentServerStatus ? 'connected' : 'disconnected';
+
       await this.statusService.update(code, {
         cpu: parseFloat(status.cpu),
         ram: parseFloat(status.ram.usage),
         disk: parseFloat(status.disk.usage),
         gpu: parseFloat(status.gpu.usage),
-        status: 'connected',
+        status: serverStatus,
       }, client.id);
     });
 
     client.on('update-process', async (data: {
       serverCode: string;
       version: string;
-      name?: string; // name 빠질 수도 있음
+      name?: string;
     }) => {
       const serverExists = await this.serverService.findByCode(data.serverCode);
       if (!serverExists) {
-        // console.warn('[경고] 존재하지 않는 서버:', data.serverCode);
         return;
       }
     
-      // 정상 name 있는 프로세스만 반영
       await this.statusService.updateProcesses(data.serverCode, data);
     });
     

@@ -24,34 +24,61 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly serverService: ServerService) {}
 
   onModuleInit() {
+    this.serverService.findAll().then(servers => {
+      servers.forEach(server => {
+        if (!server.code) return;
+        if (!this.serverMap.has(server.code)) {
+          const serverStatus: ServerStatus = {
+            id: server.id || '',
+            name: server.name || '',
+            code: server.code,
+            cpu: 0,
+            ram: 0,
+            disk: 0,
+            gpu: 0,
+            processes: server.processes?.map(p => ({
+              name: p.name || '',
+              version: p.version || '',
+              status: 'stopped'
+            })) || [],
+            status: 'disconnected',
+            lastUpdate: new Date(),
+            cpuHistory: server.cpuHistory || [],
+            ramHistory: server.ramHistory || [],
+          };
+          this.serverMap.set(server.code, serverStatus);
+        }
+      });
+    });
+
     this.updateInterval = setInterval(() => {
       if (this.socketServer) {
-        const connectedServers = Array.from(this.serverMap.values()).filter(
-          (s) => s.status === 'connected'
-        );
+        const allServers = Array.from(this.serverMap.values());
 
         const now = Date.now();
 
-        this.serverMap.forEach((serverStatus, serverCode) => {
-          const timestamps = this.processUpdateTimestamps.get(serverCode);
+        allServers.forEach(serverStatus => {
+          const timestamps = this.processUpdateTimestamps.get(serverStatus.code);
           if (!timestamps) return;
   
           serverStatus.processes.forEach(p => {
+            let checkTime = 0
+            
+            if(p.name === "AI-SERVER") {
+              checkTime = 1000 * 120
+            }
+            else {
+              checkTime = 1000 * 30
+            }
+
             const last = timestamps.get(p.name);
-            if (!last || now - last > 1000 * 30) {
+            if (!last || now - last > checkTime) {
               p.status = 'stopped';
             }
           });
         });
 
-        connectedServers.forEach(server => {
-          // console.log(`(${server.code})상태`);
-          // server.processes.forEach(p => {
-          //   console.log(` - ${p.name}: ${p.status}`);
-          // });
-        });
-
-        this.socketServer.emit('update', connectedServers);
+        this.socketServer.emit('update', allServers);
       }
     }, 3000);
   }
@@ -116,7 +143,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             version: p.version,
             status: 'stopped'
           })) || [],
-          status: 'connected',
+          status: status.status,
           lastUpdate: new Date(),
           cpuHistory: [],
           ramHistory: [],
@@ -171,13 +198,14 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (!serverStatus) return;
 
     const now = Date.now();
+    // this.logger.log(`[updateProcesses] ${serverCode} - ${process.name} called at ${new Date().toISOString()}`);
 
     if (!this.processUpdateTimestamps.has(serverCode)) {
       this.processUpdateTimestamps.set(serverCode, new Map());
     }
-    this.processUpdateTimestamps.get(serverCode)!.set(process.name, now);
+    const timestamps = this.processUpdateTimestamps.get(serverCode)!;
+    timestamps.set(process.name, now);
     
-
     const existing = serverStatus.processes.find(p => p.name === process.name);
     if (existing) {
       existing.status = 'running';
@@ -204,13 +232,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (serverCode) {
       const serverStatus = this.serverMap.get(serverCode);
       this.finalizeHour(serverCode);
-      if (serverStatus) {
-        serverStatus.status = 'disconnected';
-        serverStatus.processes.forEach((process) => {
-          process.status = 'stopped';
-        });
-        this.logger.log(`서버 연결 끊김: ${serverStatus.name} (${serverCode})`);
-      }
       this.socketToCodeMap.delete(socketId);
       return serverCode; 
     }
@@ -281,13 +302,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     const serverStatus = this.serverMap.get(code);
     if (!serverStatus) return;
 
-    // serverMap에서 프로세스 삭제
     const processIndex = serverStatus.processes.findIndex(p => p.name === processName);
     if (processIndex !== -1) {
       serverStatus.processes.splice(processIndex, 1);
     }
 
-    // DB에서 프로세스 삭제
     await this.serverService.deleteProcess(code, processName);
   }
 }
