@@ -232,8 +232,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (serverCode) {
       const serverStatus = this.serverMap.get(serverCode);
       this.finalizeHour(serverCode);
+      this.serverService.handleServerDisconnected(serverCode);
       this.socketToCodeMap.delete(socketId);
-      return serverCode; 
+      return serverCode;
     }
     return null;
   }

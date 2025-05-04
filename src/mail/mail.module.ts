@@ -8,5 +8,6 @@ import { MailRecipient } from './mail.entity';
   imports: [TypeOrmModule.forFeature([MailRecipient])],
   controllers: [MailController],
   providers: [MailService],
+  exports: [MailService],
 })
 export class MailModule {} 

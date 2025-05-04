@@ -6,11 +6,13 @@ import { ServerController } from './controllers/server.controller';
 import { ServerGateway } from './gateway';
 import { ServerStatusService } from './service';
 import { NotificationModule } from '../notification/notification.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Servers]),
     NotificationModule,
+    MailModule,
   ],
   controllers: [ServerController],
   providers: [ServerService, ServerGateway, ServerStatusService],

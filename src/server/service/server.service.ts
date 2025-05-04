@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Servers } from '../entities/server.entity';
 import { CreateServerDto } from '../dto/create-server.dto';
 import { ProcessStatus } from '../server.interface';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class ServerService {
@@ -12,6 +13,7 @@ export class ServerService {
   constructor(
     @InjectRepository(Servers)
     private readonly serversRepository: Repository<Servers>,
+    private readonly mailService: MailService,
   ) {}
 
   async create(createServerDto: CreateServerDto): Promise<Servers> {
@@ -127,5 +129,17 @@ export class ServerService {
     await this.serversRepository.save(server);
     
     this.logger.log(`프로세스 삭제 성공: code=${code}, processName=${processName}`);
+  }
+
+  async handleServerDisconnected(code: string): Promise<void> {
+    this.logger.log(`메일 전송 시도: code=${code}`);
+    const server = await this.findByCode(code);
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: code=${code}`);
+      return;
+    }
+
+    this.logger.log(`메일 전송: ${server.name} (${code})`);
+    await this.mailService.sendServerDisconnectedMail(server.name);
   }
 } 
