@@ -9,6 +9,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ServerService, ServerStatusService } from '../service';
 import { NotificationService } from 'src/notification/service';
 import { NotificationType } from 'src/notification/const/notification-type.enum';
+import { LogService } from 'src/log/log.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -27,6 +28,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private readonly statusService: ServerStatusService,
     private readonly notificationService: NotificationService,
     private readonly serverService: ServerService,
+    private readonly logService: LogService,
   ) {}
 
   onModuleInit() {
@@ -79,8 +81,50 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         }, 1000);
       }
     });
-    
 
+    client.on('server:log', async (data: {
+      serverCode: string;
+      type: 'error' | 'warning' | 'info';
+      message: string;
+    }) => {
+      if (!data.serverCode) {
+        console.log('로그 수신 실패: 서버 코드가 없음', { data });
+        return;
+      }
+
+      const serverExists = await this.serverService.findByCode(data.serverCode);
+      if (!serverExists) {
+        console.log('로그 수신 실패: DB에 없는 서버 코드', {
+          serverCode: data.serverCode,
+          data
+        });
+        return;
+      }
+
+      console.log('로그 수신:', {
+        serverCode: data.serverCode,
+        type: data.type,
+        message: data.message,
+        timestamp: new Date()
+      });
+
+      await this.logService.addLog({
+        serverCode: data.serverCode,
+        type: data.type,
+        message: data.message,
+        timestamp: new Date(),
+      });
+
+      // 프론트엔드로 로그 전달
+      this.server.emit('server:log', {
+        serverCode: data.serverCode,
+        serverName: serverExists.name,
+        type: data.type,
+        message: data.message,
+        timestamp: new Date()
+      });
+    });
+    
     client.on('update-status', async (data: {
       code: string;
       status: {
@@ -125,7 +169,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     
       await this.statusService.updateProcesses(data.serverCode, data);
     });
-    
   }
 
   async handleDisconnect(client: Socket) {
