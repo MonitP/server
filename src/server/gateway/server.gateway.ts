@@ -82,7 +82,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       }
     });
 
-    client.on('server:log', async (data: {
+    client.on('server-log', async (data: {
       serverCode: string;
       type: 'error' | 'warning' | 'info';
       message: string;
@@ -115,8 +115,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         timestamp: new Date(),
       });
 
-      // 프론트엔드로 로그 전달
-      this.server.emit('server:log', {
+      this.server.emit('server-log', {
         serverCode: data.serverCode,
         serverName: serverExists.name,
         type: data.type,

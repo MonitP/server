@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Servers } from '../../server/entities/server.entity';
 
 @Entity('logs')
 export class Log {
@@ -7,6 +8,10 @@ export class Log {
 
   @Column({ length: 50 })
   serverCode: string;
+
+  @ManyToOne(() => Servers)
+  @JoinColumn({ name: 'serverCode', referencedColumnName: 'code' })
+  server: Servers;
 
   @Column({ length: 20 })
   type: string;

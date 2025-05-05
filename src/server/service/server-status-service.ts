@@ -149,7 +149,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           ramHistory: [],
         };
         this.processIdCounters.set(code, 0);
-        this.logger.log(`새로운 서버 등록: ${server.name} (${server.code})`);
       }
 
       serverStatus.cpu = status.cpu;

@@ -10,11 +10,11 @@ import { Servers } from '../server/entities/server.entity';
 export class LogService implements OnModuleInit {
   private readonly STREAM_KEY = 'logs:stream';
   private readonly CONSUMER_GROUP = 'log-processors';
-  private readonly BATCH_SIZE = 1000; // 한 번에 처리할 로그 개수
-  private readonly BLOCK_TIME = 5000; // 대기 시간 (ms)
-  private readonly SAVE_INTERVAL = 10000; // 10초마다 저장
+  private readonly BATCH_SIZE = 1000; 
+  private readonly BLOCK_TIME = 5000; 
+  private readonly SAVE_INTERVAL = 10000; 
   private consumers: Map<string, Promise<void>> = new Map();
-  private logBuffer: Map<string, Log[]> = new Map(); // 서버별 로그 버퍼
+  private logBuffer: Map<string, Log[]> = new Map(); 
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
@@ -27,19 +27,18 @@ export class LogService implements OnModuleInit {
     this.startConsumers().catch(error => {
       console.error('Consumer 시작 중 오류 발생:', error);
     });
-    // 주기적으로 로그 저장
+
     setInterval(() => this.saveBufferedLogs(), this.SAVE_INTERVAL);
   }
 
   private async getConsumerCount(): Promise<number> {
     const servers = await this.serverRepository.find();
-    return servers.length; // 서버 1개당 Consumer 1개
+    return servers.length;
   }
 
   private async startConsumers() {
     const count = await this.getConsumerCount();
     
-    // 현재 Consumer 개수 조정
     if (this.consumers.size > count) {
       const toRemove = Array.from(this.consumers.keys()).slice(count);
       toRemove.forEach(name => this.consumers.delete(name));
@@ -79,12 +78,10 @@ export class LogService implements OnModuleInit {
         for (const [id, fields] of messages) {
           const log = this.parseLogFields(fields);
           
-          // serverCode가 없는 경우 건너뛰기
           if (!log.serverCode) {
             continue;
           }
 
-          // 로그를 버퍼에 추가
           const serverCode = log.serverCode;
           if (!this.logBuffer.has(serverCode)) {
             this.logBuffer.set(serverCode, []);
@@ -108,7 +105,13 @@ export class LogService implements OnModuleInit {
       if (!serverCode || logs.length === 0) continue;
 
       try {
-        await this.logRepository.save(logs);
+        await this.logRepository
+          .createQueryBuilder()
+          .insert()
+          .into(Log)
+          .values(logs)
+          .execute();
+        
         this.logBuffer.set(serverCode, []);
       } catch (error) {
         console.error(`로그 저장 실패: serverCode=${serverCode}, error=${error.message}`);
@@ -148,15 +151,40 @@ export class LogService implements OnModuleInit {
     return log;
   }
 
-  async getLogs(serverCode?: string, limit: number = 100): Promise<Log[]> {
+    async getLogs(
+    serverCode?: string,
+    page: number = 1,
+    limit: number = 50,
+    startDate?: Date,
+    endDate?: Date,
+    type?: string
+  ): Promise<{ logs: Log[]; total: number }> {
     const queryBuilder = this.logRepository.createQueryBuilder('log')
       .orderBy('log.timestamp', 'DESC')
-      .limit(limit);
+      .skip((page - 1) * limit)
+      .take(limit);
 
     if (serverCode) {
-      queryBuilder.where('log.serverCode = :serverCode', { serverCode });
+      queryBuilder.andWhere('log.serverCode = :serverCode', { serverCode });
     }
 
-    return queryBuilder.getMany();
+    if (type) {
+      queryBuilder.andWhere('log.type = :type', { type });
+    }
+
+    if (startDate) {
+      queryBuilder.andWhere('log.timestamp >= :startDate', { startDate });
+    }
+
+    if (endDate) {
+      queryBuilder.andWhere('log.timestamp <= :endDate', { endDate });
+    }
+
+    const [logs, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      logs,
+      total
+    };
   }
 } 

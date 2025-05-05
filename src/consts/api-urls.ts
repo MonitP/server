@@ -6,6 +6,9 @@ export const API_URLS = {
     update: '/:id',
     deleteProcess: '/:code/processes/:processName',
   },
+  log: {
+    base: '/api/logs',
+  },
   notification: {
     base: '/api/notifications',
   },

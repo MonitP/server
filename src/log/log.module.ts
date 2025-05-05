@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { LogService } from './log.service';
+import { LogController } from './log.controller';
 import { Log } from './entities/log.entity';
 import { Servers } from '../server/entities/server.entity';
 
@@ -13,6 +14,7 @@ import { Servers } from '../server/entities/server.entity';
       url: 'redis://localhost:6379',
     }),
   ],
+  controllers: [LogController],
   providers: [LogService],
   exports: [LogService],
 })
