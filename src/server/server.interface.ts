@@ -14,6 +14,7 @@ export interface ServerStatus {
   ram: number;
   disk: number;
   gpu: number;
+  network: number;
   processes: ProcessStatus[];
   status: 'connected' | 'disconnected' | 'on' | 'off';
   lastUpdate: Date;

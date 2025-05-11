@@ -131,16 +131,19 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         ram: { usage: string };
         disk: { usage: string };
         gpu: { usage: string };
+        network: { usage: string };
       };
     }) => {
       const { code, status } = data;
+
+      console.log('Jehee update-status', data);
 
       const serverExists = await this.serverService.findByCode(code);
       if (!serverExists) {
         return;
       }
 
-      if (!status || !status.cpu || !status.ram || !status.disk || !status.gpu) {
+      if (!status || !status.cpu || !status.ram || !status.disk || !status.gpu || !status.network) {
         return;
       }
 
@@ -152,6 +155,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         ram: parseFloat(status.ram.usage),
         disk: parseFloat(status.disk.usage),
         gpu: parseFloat(status.gpu.usage),
+        network: parseFloat(status.network.usage),
         status: serverStatus,
       }, client.id);
     });

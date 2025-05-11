@@ -36,6 +36,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             ram: 0,
             disk: 0,
             gpu: 0,
+            network: 0,
             processes: server.processes?.map(p => ({
               name: p.name || '',
               version: p.version || '',
@@ -104,6 +105,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       ram: number;
       disk: number;
       gpu: number;
+      network: number;
       status: 'connected' | 'disconnected';
     },
     socketId: string
@@ -138,6 +140,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           ram: 0,
           disk: 0,
           gpu: 0,
+          network: 0,
           processes: server.processes?.map(p => ({
             name: p.name,
             version: p.version,
@@ -155,6 +158,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.ram = status.ram;
       serverStatus.disk = status.disk;
       serverStatus.gpu = status.gpu;
+      serverStatus.network = status.network;
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
 
@@ -178,12 +182,17 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         ram: status.ram,
         disk: status.disk,
         gpu: status.gpu,
+        network: status.network,
         processes: serverStatus?.processes ?? [],
         status: status.status,
         lastUpdate: new Date(),
         cpuHistory,
         ramHistory,
       });
+
+      this.logger.log(
+        `서버 상태 업데이트: ${code} - CPU ${status.cpu.toFixed(2)}%, RAM ${status.ram.toFixed(2)}%, Network ${status.network.toFixed(2)}%`
+      );
     } catch (error) {
       this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
     }
@@ -286,6 +295,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       ram: serverStatus?.ram ?? 0,
       disk: serverStatus?.disk ?? 0,
       gpu: serverStatus?.gpu ?? 0,
+      network: serverStatus?.network ?? 0,
       processes: serverStatus?.processes ?? [],
       status: serverStatus?.status ?? 'disconnected',
       lastUpdate: new Date(),
@@ -293,8 +303,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       ramHistory: server.ramHistory,
     });
   
+    const avgNetwork = serverStatus?.network ?? 0;
     this.logger.log(
-      `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, RAM ${avgRam.toFixed(2)}%`
+      `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, RAM ${avgRam.toFixed(2)}%, Network ${avgNetwork.toFixed(2)}%`
     );
   }
   
