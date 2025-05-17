@@ -4,6 +4,7 @@ export interface ProcessStatus {
   name: string;
   version: string;
   status: 'running' | 'stopped';
+  lastUpdate?: Date;
 }
 
 export interface ServerStatus {

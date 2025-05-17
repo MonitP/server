@@ -162,13 +162,17 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       serverCode: string;
       version: string;
       name?: string;
+      lastUpdate?: Date;
     }) => {
       const serverExists = await this.serverService.findByCode(data.serverCode);
       if (!serverExists) {
         return;
       }
     
-      await this.statusService.updateProcesses(data.serverCode, data);
+      await this.statusService.updateProcesses(data.serverCode, {
+        ...data,
+        lastUpdate: data.lastUpdate || new Date()
+      });
     });
   }
 

@@ -77,7 +77,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
             const last = timestamps.get(p.name);
             if (!last || now - last > checkTime) {
-              p.status = 'stopped';
+              if (p.status === 'running') {
+                p.status = 'stopped';
+                p.lastUpdate = new Date();
+              }
             }
           });
         });
@@ -157,6 +160,19 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         this.processIdCounters.set(code, 0);
       }
 
+      // 경고 상태 체크 및 시간 업데이트
+      const isWarning = (status.cpu > 60 && status.cpu <= 80) || 
+                       (status.ram > 60 && status.ram <= 80) ||
+                       (status.disk > 60 && status.disk <= 80) ||
+                       (status.gpu > 60 && status.gpu <= 80) ||
+                       (status.network > 60 && status.network <= 80);
+
+      if (isWarning && serverStatus.status === 'connected') {
+        serverStatus.warningSince = new Date();
+      } else if (!isWarning) {
+        serverStatus.warningSince = undefined;
+      }
+
       serverStatus.cpu = status.cpu;
       serverStatus.ram = status.ram;
       serverStatus.disk = status.disk;
@@ -189,6 +205,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         processes: serverStatus?.processes ?? [],
         status: status.status,
         lastUpdate: new Date(),
+        warningSince: serverStatus.warningSince,
         cpuHistory,
         ramHistory,
       });
@@ -201,7 +218,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async updateProcesses(serverCode: string, process: { serverCode: string; version: string; name?: string }) {
+  async updateProcesses(serverCode: string, process: { 
+    serverCode: string; 
+    version: string; 
+    name?: string;
+    lastUpdate?: Date;
+  }) {
     const server = await this.serverService.findByCode(serverCode);
     if (!server || !process.name) return;
 
@@ -209,7 +231,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (!serverStatus) return;
 
     const now = Date.now();
-    // this.logger.log(`[updateProcesses] ${serverCode} - ${process.name} called at ${new Date().toISOString()}`);
 
     if (!this.processUpdateTimestamps.has(serverCode)) {
       this.processUpdateTimestamps.set(serverCode, new Map());
@@ -221,15 +242,21 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     if (existing) {
       existing.status = 'running';
       existing.version = process.version;
+      existing.lastUpdate = new Date();
     } else {
-      serverStatus.processes.push({
-        name: process.name,
-        version: process.version,
-        status: 'running'
-      });
+      const dbProcesses = await this.serverService.findByCode(serverCode);
+      const isDuplicate = dbProcesses?.processes?.some(p => p.name === process.name);
+      
+      if (!isDuplicate) {
+        serverStatus.processes.push({
+          name: process.name,
+          version: process.version,
+          status: 'running',
+          lastUpdate: new Date()
+        });
+        await this.serverService.updateProcesses(serverCode, serverStatus.processes);
+      }
     }
-
-    await this.serverService.updateProcesses(serverCode, serverStatus.processes);
   }
   
 
