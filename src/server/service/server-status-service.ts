@@ -20,6 +20,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private socketToCodeMap = new Map<string, string>();
   private hourMap: Map<string, hourBuffer> = new Map();
   private currentHour: number = new Date().getHours();
+  private lastDate: string = new Date().toISOString().slice(0, 10);
 
   constructor(private readonly serverService: ServerService) {}
 
@@ -44,8 +45,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             })) || [],
             status: 'disconnected',
             lastUpdate: new Date(),
-            cpuHistory: server.cpuHistory || [],
-            ramHistory: server.ramHistory || [],
+            cpuHistory: server.cpuHistory || new Array(24).fill(null),
+            ramHistory: server.ramHistory || new Array(24).fill(null),
           };
           this.serverMap.set(server.code, serverStatus);
         }
@@ -53,6 +54,20 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.updateInterval = setInterval(() => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const todayString = now.toISOString().slice(0, 10);
+
+      if (todayString !== this.lastDate) {
+        this.handleDateChange();
+        this.lastDate = todayString;
+      }
+      
+      if (currentHour !== this.currentHour) {
+        this.handleHourChange();
+        this.currentHour = currentHour;
+      }
+
       if (this.socketServer) {
         const allServers = Array.from(this.serverMap.values());
         const now = Date.now();
@@ -90,6 +105,56 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }, 3000);
   }
 
+  private async handleDateChange() {
+    const servers = await this.serverService.findAll();
+    for (const server of servers) {
+      if (!server.code || !server.id) continue;
+      
+      // 모든 서버의 히스토리 초기화
+      await this.serverService.update(server.id, {
+        cpuHistory: new Array(24).fill(null),
+        ramHistory: new Array(24).fill(null),
+        historyDate: this.lastDate
+      });
+
+      const serverStatus = this.serverMap.get(server.code);
+      if (serverStatus) {
+        serverStatus.cpuHistory = new Array(24).fill(null);
+        serverStatus.ramHistory = new Array(24).fill(null);
+      }
+    }
+  }
+
+  private async handleHourChange() {
+    for (const [code, buffer] of this.hourMap.entries()) {
+      if (buffer.count === 0) continue;
+
+      const avgCpu = buffer.sumCpu / buffer.count;
+      const avgRam = buffer.sumRam / buffer.count;
+
+      const server = await this.serverService.findByCode(code);
+      if (!server) continue;
+
+      const serverStatus = this.serverMap.get(code);
+      if (!serverStatus) continue;
+
+      // 이전 시간대의 평균값 저장
+      const prevHour = (this.currentHour + 23) % 24;
+      serverStatus.cpuHistory[prevHour] = parseFloat(avgCpu.toFixed(2));
+      serverStatus.ramHistory[prevHour] = parseFloat(avgRam.toFixed(2));
+
+      // DB 업데이트
+      await this.serverService.update(server.id, {
+        cpuHistory: serverStatus.cpuHistory,
+        ramHistory: serverStatus.ramHistory,
+        historyDate: this.lastDate
+      });
+
+      // 버퍼 초기화
+      this.hourMap.set(code, { sumCpu: 0, sumRam: 0, count: 0 });
+    }
+  }
+
   onModuleDestroy() {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
@@ -124,6 +189,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       this.socketToCodeMap.set(socketId, code);
       const now = new Date();
       const hour = now.getHours();
+      const todayString = now.toISOString().slice(0, 10);
+
+      if (todayString !== this.lastDate) {
+        await this.handleDateChange();
+        this.lastDate = todayString;
+      }
 
       if (hour !== this.currentHour) {
         await this.finalizeHour(code);
@@ -154,24 +225,17 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           })) || [],
           status: status.status,
           lastUpdate: new Date(),
-          cpuHistory: [],
-          ramHistory: [],
+          cpuHistory: new Array(24).fill(null),
+          ramHistory: new Array(24).fill(null),
         };
         this.processIdCounters.set(code, 0);
       }
 
-      // 경고 상태 체크 및 시간 업데이트
-      const isWarning = (status.cpu > 60 && status.cpu <= 80) || 
-                       (status.ram > 60 && status.ram <= 80) ||
-                       (status.disk > 60 && status.disk <= 80) ||
-                       (status.gpu > 60 && status.gpu <= 80) ||
-                       (status.network > 60 && status.network <= 80);
+      const avgCpu = buffer.sumCpu / buffer.count;
+      const avgRam = buffer.sumRam / buffer.count;
 
-      if (isWarning && serverStatus.status === 'connected') {
-        serverStatus.warningSince = new Date();
-      } else if (!isWarning) {
-        serverStatus.warningSince = undefined;
-      }
+      serverStatus.cpuHistory[hour] = parseFloat(avgCpu.toFixed(2));
+      serverStatus.ramHistory[hour] = parseFloat(avgRam.toFixed(2));
 
       serverStatus.cpu = status.cpu;
       serverStatus.ram = status.ram;
@@ -180,20 +244,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.network = status.network;
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
-
-      const avgCpu = buffer.sumCpu / buffer.count;
-      const avgRam = buffer.sumRam / buffer.count;
-
-      const cpuHistory = Array.isArray(server.cpuHistory) && server.cpuHistory.length === 24
-        ? [...server.cpuHistory]
-        : new Array(24).fill(null);
-
-      const ramHistory = Array.isArray(server.ramHistory) && server.ramHistory.length === 24
-        ? [...server.ramHistory]
-        : new Array(24).fill(null);
-
-      cpuHistory[this.currentHour] = parseFloat(avgCpu.toFixed(2));
-      ramHistory[this.currentHour] = parseFloat(avgRam.toFixed(2));
 
       this.serverMap.set(code, {
         ...server,
@@ -205,16 +255,18 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         processes: serverStatus?.processes ?? [],
         status: status.status,
         lastUpdate: new Date(),
-        warningSince: serverStatus.warningSince,
-        cpuHistory,
-        ramHistory,
+        cpuHistory: serverStatus.cpuHistory,
+        ramHistory: serverStatus.ramHistory,
       });
 
-      // this.logger.log(
-        // `서버 상태 업데이트: ${code} - CPU ${status.cpu.toFixed(2)}%, RAM ${status.ram.toFixed(2)}%, Network ${status.network.toFixed(2)}%`
-      // );
+      await this.serverService.update(server.id, {
+        cpuHistory: serverStatus.cpuHistory,
+        ramHistory: serverStatus.ramHistory,
+        historyDate: todayString
+      });
+
     } catch (error) {
-      // this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
+      this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
     }
   }
 

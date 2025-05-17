@@ -27,6 +27,9 @@ export class Servers {
   @Column({ type: 'json', nullable: true })
   ramHistory: number[];
 
+  @Column({ type: 'json', nullable: true })
+  uptimeHistory: number[];
+
   @CreateDateColumn()
   createdAt: Date;
 

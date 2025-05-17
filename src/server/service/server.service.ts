@@ -89,7 +89,6 @@ export class ServerService {
   }
 
   async update(id: string, updateServerDto: Partial<Servers>): Promise<Servers> {
-    this.logger.log(`서버 업데이트 시도: ID=${id}`);
     
     const server = await this.findOne(id);
     if (!server) {
@@ -102,7 +101,6 @@ export class ServerService {
       ...updateServerDto,
     });
     
-    this.logger.log(`서버 업데이트 성공: ID=${id}`);
     return updatedServer;
   }
 
