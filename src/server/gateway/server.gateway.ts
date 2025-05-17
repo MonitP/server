@@ -136,8 +136,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }) => {
       const { code, status } = data;
 
-      console.log('Jehee update-status', data);
-
       const serverExists = await this.serverService.findByCode(code);
       if (!serverExists) {
         return;

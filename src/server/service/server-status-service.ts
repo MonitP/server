@@ -55,10 +55,13 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     this.updateInterval = setInterval(() => {
       if (this.socketServer) {
         const allServers = Array.from(this.serverMap.values());
-
         const now = Date.now();
 
         allServers.forEach(serverStatus => {
+          if (now - serverStatus.lastUpdate.getTime() > 1000 * 30) {
+            serverStatus.status = 'disconnected';
+          }
+
           const timestamps = this.processUpdateTimestamps.get(serverStatus.code);
           if (!timestamps) return;
   
@@ -190,11 +193,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         ramHistory,
       });
 
-      this.logger.log(
-        `서버 상태 업데이트: ${code} - CPU ${status.cpu.toFixed(2)}%, RAM ${status.ram.toFixed(2)}%, Network ${status.network.toFixed(2)}%`
-      );
+      // this.logger.log(
+        // `서버 상태 업데이트: ${code} - CPU ${status.cpu.toFixed(2)}%, RAM ${status.ram.toFixed(2)}%, Network ${status.network.toFixed(2)}%`
+      // );
     } catch (error) {
-      this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
+      // this.logger.error(`서버 상태 업데이트 실패: code=${code}, error=${error.message}`);
     }
   }
 
