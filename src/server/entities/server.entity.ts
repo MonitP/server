@@ -28,6 +28,12 @@ export class Servers {
   ramHistory: number[];
 
   @Column({ type: 'json', nullable: true })
+  gpuHistory: number[];
+
+  @Column({ type: 'json', nullable: true })
+  networkHistory: number[];
+
+  @Column({ type: 'json', nullable: true })
   uptimeHistory: number[];
 
   @CreateDateColumn()

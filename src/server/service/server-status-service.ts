@@ -6,6 +6,8 @@ import { Server } from 'socket.io';
 type hourBuffer = {
   sumCpu: number;
   sumRam: number;
+  sumGpu: number;
+  sumNetwork: number;
   count: number;
 };
 
@@ -47,6 +49,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             lastUpdate: new Date(),
             cpuHistory: server.cpuHistory || new Array(24).fill(null),
             ramHistory: server.ramHistory || new Array(24).fill(null),
+            gpuHistory: server.gpuHistory || new Array(24).fill(null),
+            networkHistory: server.networkHistory || new Array(24).fill(null),
           };
           this.serverMap.set(server.code, serverStatus);
         }
@@ -114,6 +118,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       await this.serverService.update(server.id, {
         cpuHistory: new Array(24).fill(null),
         ramHistory: new Array(24).fill(null),
+        gpuHistory: new Array(24).fill(null),
+        networkHistory: new Array(24).fill(null),
         historyDate: this.lastDate
       });
 
@@ -121,6 +127,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       if (serverStatus) {
         serverStatus.cpuHistory = new Array(24).fill(null);
         serverStatus.ramHistory = new Array(24).fill(null);
+        serverStatus.gpuHistory = new Array(24).fill(null);
+        serverStatus.networkHistory = new Array(24).fill(null);
       }
     }
   }
@@ -131,6 +139,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
       const avgCpu = buffer.sumCpu / buffer.count;
       const avgRam = buffer.sumRam / buffer.count;
+      const avgGpu = buffer.sumGpu / buffer.count;
+      const avgNetwork = buffer.sumNetwork / buffer.count;
 
       const server = await this.serverService.findByCode(code);
       if (!server) continue;
@@ -142,16 +152,20 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       const prevHour = (this.currentHour + 23) % 24;
       serverStatus.cpuHistory[prevHour] = parseFloat(avgCpu.toFixed(2));
       serverStatus.ramHistory[prevHour] = parseFloat(avgRam.toFixed(2));
+      serverStatus.gpuHistory[prevHour] = parseFloat(avgGpu.toFixed(2));
+      serverStatus.networkHistory[prevHour] = parseFloat(avgNetwork.toFixed(2));
 
       // DB 업데이트
       await this.serverService.update(server.id, {
         cpuHistory: serverStatus.cpuHistory,
         ramHistory: serverStatus.ramHistory,
+        gpuHistory: serverStatus.gpuHistory,
+        networkHistory: serverStatus.networkHistory,
         historyDate: this.lastDate
       });
 
       // 버퍼 초기화
-      this.hourMap.set(code, { sumCpu: 0, sumRam: 0, count: 0 });
+      this.hourMap.set(code, { sumCpu: 0, sumRam: 0, sumGpu: 0, sumNetwork: 0, count: 0 });
     }
   }
 
@@ -201,9 +215,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         this.currentHour = hour;
       }
 
-      const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumRam: 0, count: 0 };
+      const buffer = this.hourMap.get(code) ?? { sumCpu: 0, sumRam: 0, sumGpu: 0, sumNetwork: 0, count: 0 };
       buffer.sumCpu += status.cpu;
       buffer.sumRam += status.ram;
+      buffer.sumGpu += status.gpu;
+      buffer.sumNetwork += status.network;
       buffer.count += 1;
       this.hourMap.set(code, buffer);
 
@@ -227,15 +243,21 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           lastUpdate: new Date(),
           cpuHistory: new Array(24).fill(null),
           ramHistory: new Array(24).fill(null),
+          gpuHistory: new Array(24).fill(null),
+          networkHistory: new Array(24).fill(null),
         };
         this.processIdCounters.set(code, 0);
       }
 
       const avgCpu = buffer.sumCpu / buffer.count;
       const avgRam = buffer.sumRam / buffer.count;
+      const avgGpu = buffer.sumGpu / buffer.count;
+      const avgNetwork = buffer.sumNetwork / buffer.count;
 
       serverStatus.cpuHistory[hour] = parseFloat(avgCpu.toFixed(2));
       serverStatus.ramHistory[hour] = parseFloat(avgRam.toFixed(2));
+      serverStatus.gpuHistory[hour] = parseFloat(avgGpu.toFixed(2));
+      serverStatus.networkHistory[hour] = parseFloat(avgNetwork.toFixed(2));
 
       serverStatus.cpu = status.cpu;
       serverStatus.ram = status.ram;
@@ -257,11 +279,15 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         lastUpdate: new Date(),
         cpuHistory: serverStatus.cpuHistory,
         ramHistory: serverStatus.ramHistory,
+        gpuHistory: serverStatus.gpuHistory,
+        networkHistory: serverStatus.networkHistory,
       });
 
       await this.serverService.update(server.id, {
         cpuHistory: serverStatus.cpuHistory,
         ramHistory: serverStatus.ramHistory,
+        gpuHistory: serverStatus.gpuHistory,
+        networkHistory: serverStatus.networkHistory,
         historyDate: todayString
       });
 
@@ -383,6 +409,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       lastUpdate: new Date(),
       cpuHistory: server.cpuHistory,
       ramHistory: server.ramHistory,
+      gpuHistory: serverStatus?.gpuHistory ?? new Array(24).fill(null),
+      networkHistory: serverStatus?.networkHistory ?? new Array(24).fill(null),
     });
   
     const avgNetwork = serverStatus?.network ?? 0;
