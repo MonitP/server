@@ -29,6 +29,7 @@ export interface ServerStatus {
   downTime: number;
   lastRestart?: Date;
   startTime?: Date;
+  availability?: number;
 }
 
 

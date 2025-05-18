@@ -55,6 +55,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             networkHistory: server.networkHistory || new Array(24).fill(null),
             upTime: server.upTime || 0,
             downTime: server.downTime || 0,
+            availability: 0
           };
           this.serverMap.set(server.code, serverStatus);
         }
@@ -136,18 +137,42 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }, 1000 * 60);
   }
 
+  private calculateAvailability(upTime: number, downTime: number): number {
+    const totalTime = upTime + downTime;
+    if (totalTime === 0) return 0;
+    return (upTime / totalTime) * 100;
+  }
+
   private async handleDateChange() {
     const servers = await this.serverService.findAll();
+    const now = new Date();
+    const isFirstDayOfMonth = now.getDate() === 1;
+
     for (const server of servers) {
       if (!server.code || !server.id) continue;
       
-      await this.serverService.update(server.id, {
+      const updateData: any = {
         cpuHistory: new Array(24).fill(null),
         ramHistory: new Array(24).fill(null),
         gpuHistory: new Array(24).fill(null),
         networkHistory: new Array(24).fill(null),
         historyDate: this.lastDate
-      });
+      };
+
+      if (isFirstDayOfMonth) {
+        updateData.upTime = 0;
+        updateData.downTime = 0;
+        updateData.availability = 0;
+        this.logger.log(`매월 초기화: ${server.code}의 upTime과 downTime이 리셋되었습니다.`);
+      } else {
+        // 매일 자정에 가동률 업데이트
+        const serverStatus = this.serverMap.get(server.code);
+        if (serverStatus) {
+          updateData.availability = this.calculateAvailability(serverStatus.upTime, serverStatus.downTime);
+        }
+      }
+
+      await this.serverService.update(server.id, updateData);
 
       const serverStatus = this.serverMap.get(server.code);
       if (serverStatus) {
@@ -155,6 +180,14 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         serverStatus.ramHistory = new Array(24).fill(null);
         serverStatus.gpuHistory = new Array(24).fill(null);
         serverStatus.networkHistory = new Array(24).fill(null);
+        
+        if (isFirstDayOfMonth) {
+          serverStatus.upTime = 0;
+          serverStatus.downTime = 0;
+          serverStatus.availability = 0;
+        } else {
+          serverStatus.availability = this.calculateAvailability(serverStatus.upTime, serverStatus.downTime);
+        }
       }
     }
   }
@@ -273,6 +306,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           networkHistory: new Array(24).fill(null),
           upTime: 0,
           downTime: 0,
+          availability: 0
         };
         this.processIdCounters.set(code, 0);
       }
@@ -294,6 +328,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.network = status.network;
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
+      serverStatus.availability = this.calculateAvailability(serverStatus.upTime, serverStatus.downTime);
 
       this.serverMap.set(code, {
         ...server,
@@ -312,7 +347,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         upTime: serverStatus.upTime,
         downTime: serverStatus.downTime,
         startTime: server.startTime || new Date(),
-        lastRestart: server.lastRestart || new Date()
+        lastRestart: server.lastRestart || new Date(),
+        availability: serverStatus.availability
       });
 
       await this.serverService.update(server.id, {
@@ -324,7 +360,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         upTime: serverStatus.upTime,
         downTime: serverStatus.downTime,
         startTime: server.startTime || new Date(),
-        lastRestart: server.lastRestart || new Date()
+        lastRestart: server.lastRestart || new Date(),
+        availability: serverStatus.availability
       });
 
     } catch (error) {

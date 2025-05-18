@@ -48,6 +48,9 @@ export class Servers {
   @Column({ type: 'timestamp', nullable: true })
   startTime: Date;
 
+  @Column({ type: 'float', default: 0 })
+  availability: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
