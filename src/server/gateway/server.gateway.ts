@@ -46,6 +46,11 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         return;
       }
 
+      await this.serverService.update(serverExists.id, {
+        startTime: new Date(),
+        lastRestart: new Date()
+      });
+
       await this.emitNotification(code, NotificationType.CONNECTED);
       this.server.emit('notifications');
     });
@@ -147,7 +152,7 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
       const currentServerStatus = this.statusService.getServerCodeBySocketId(client.id);
       const serverStatus = currentServerStatus ? 'connected' : 'disconnected';
-
+      
       await this.statusService.update(code, {
         cpu: parseFloat(status.cpu),
         ram: parseFloat(status.ram.usage),

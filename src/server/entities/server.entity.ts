@@ -36,6 +36,18 @@ export class Servers {
   @Column({ type: 'json', nullable: true })
   uptimeHistory: number[];
 
+  @Column({ type: 'int', default: 0 })
+  upTime: number;
+
+  @Column({ type: 'int', default: 0 })
+  downTime: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastRestart: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  startTime: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

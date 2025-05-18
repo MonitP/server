@@ -5,6 +5,8 @@ export interface ProcessStatus {
   version: string;
   status: 'running' | 'stopped';
   lastUpdate?: Date;
+  runningTime?: number;
+  startTime?: Date;
 }
 
 export interface ServerStatus {
@@ -23,6 +25,10 @@ export interface ServerStatus {
   ramHistory: number[];
   gpuHistory: number[];
   networkHistory: number[];
+  upTime: number;
+  downTime: number;
+  lastRestart?: Date;
+  startTime?: Date;
 }
 
 
