@@ -156,7 +156,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         ramHistory: new Array(24).fill(null),
         gpuHistory: new Array(24).fill(null),
         networkHistory: new Array(24).fill(null),
-        historyDate: this.lastDate
+        historyDate: now.toISOString().slice(0, 10)
       };
 
       if (isFirstDayOfMonth) {
@@ -264,7 +264,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       const hour = now.getHours();
       const todayString = now.toISOString().slice(0, 10);
 
-      if (todayString !== this.lastDate) {
+      if (todayString !== this.lastDate || (hour === 0 && now.getMinutes() === 0)) {
         await this.handleDateChange();
         this.lastDate = todayString;
       }
