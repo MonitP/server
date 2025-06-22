@@ -129,7 +129,7 @@ export class ServerService {
     this.logger.log(`프로세스 삭제 성공: code=${code}, processName=${processName}`);
   }
 
-  async handleServerDisconnected(code: string): Promise<void> {
+  async handleServerDisconnected(code: string, processName?: string): Promise<void> {
     this.logger.log(`메일 전송 시도: code=${code}`);
     const server = await this.findByCode(code);
     if (!server) {
@@ -137,7 +137,7 @@ export class ServerService {
       return;
     }
 
-    this.logger.log(`메일 전송: ${server.name} (${code})`);
-    await this.mailService.sendServerDisconnectedMail(server.name);
+    this.logger.log(`메일 전송: ${server.name} (${code})${processName ? ' 프로세스: ' + processName : ''}`);
+    await this.mailService.sendServerDisconnectedMail(server.name, processName);
   }
 } 

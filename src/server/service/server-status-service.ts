@@ -96,6 +96,13 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             if(p.name === "AI-SERVER") {
               checkTime = 1000 * 120
             }
+            else if (
+              p.name.startsWith("DSMC") ||
+              p.name.startsWith("DSSNR") ||
+              p.name.startsWith("Feed")
+            ) {
+              checkTime = 1000 * 60 * 5;
+            }
             else {
               checkTime = 1000 * 30
             }
@@ -105,6 +112,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
               if (p.status === 'running') {
                 p.status = 'stopped';
                 p.lastUpdate = new Date();
+                if (p.name === 'AI-SERVER') {
+                  this.serverService.handleServerDisconnected(serverStatus.code);
+                }
               }
             }
           });
