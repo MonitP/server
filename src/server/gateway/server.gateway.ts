@@ -13,16 +13,18 @@ import { LogService } from 'src/log/log.service';
 
 @Injectable()
 @WebSocketGateway({
-  cors: {
-    origin: '*',
-  },
+  cors: { origin: '*' },
+  pingInterval: 25000,
+  pingTimeout: 60000,
 })
+
 export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   @WebSocketServer()
   server: Server;
 
   private lastCommandResultKey: string | null = null;
   private processingCommand: string | null = null;
+  private disconnectEmitTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly statusService: ServerStatusService,
@@ -38,8 +40,31 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   handleConnection(client: Socket) {
     console.log(`server connected: ${client.id}`);
 
+      const socketCount = this.server.sockets.sockets.size || Object.keys(this.server.sockets.sockets).length;
+    console.log(`현재 연결된 소켓 개수: ${socketCount}`);
+
+      const ip =
+    client.handshake.headers['x-forwarded-for'] || 
+    client.handshake.address ||
+    (client.conn && client.conn.remoteAddress) ||
+    'unknown';
+
+  console.log(`server connected: ${client.id} from ${ip}`);
+
+  const userAgent = client.handshake.headers['user-agent'] || 'unknown';
+console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
+
+
+
     client.on('init', async (data: { serverCode: string }) => {
       const code = data.serverCode;
+
+      this.statusService.clearDisconnectTimer(code);
+      const prevTimer = this.disconnectEmitTimers.get(code);
+      if (prevTimer) {
+        clearTimeout(prevTimer);
+        this.disconnectEmitTimers.delete(code);
+      }
 
       const serverExists = await this.serverService.findByCode(code);
       if (!serverExists) {
@@ -186,7 +211,14 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     const code = this.statusService.setDisconnected(client.id);
     if (!code) return;
 
-    await this.emitNotification(code, NotificationType.DISCONNECTED);
+    const prevTimer = this.disconnectEmitTimers.get(code);
+    if (prevTimer) clearTimeout(prevTimer);
+
+    const timer = setTimeout(async () => {
+      await this.emitNotification(code, NotificationType.DISCONNECTED);
+      this.disconnectEmitTimers.delete(code);
+    }, 30000);
+    this.disconnectEmitTimers.set(code, timer);
   }
 
   private async emitNotification(code: string, type: NotificationType) {

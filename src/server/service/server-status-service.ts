@@ -25,6 +25,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private hourMap: Map<string, hourBuffer> = new Map();
   private currentHour: number = new Date().getHours();
   private lastDate: string = new Date().toISOString().slice(0, 10);
+  private disconnectTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly serverService: ServerService) {}
 
@@ -165,7 +166,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         updateData.availability = 0;
         this.logger.log(`매월 초기화: ${server.code}의 upTime과 downTime이 리셋되었습니다.`);
       } else {
-        // 매일 자정에 가동률 업데이트
         const serverStatus = this.serverMap.get(server.code);
         if (serverStatus) {
           updateData.availability = this.calculateAvailability(serverStatus.upTime, serverStatus.downTime);
@@ -404,7 +404,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       existing.status = 'running';
       existing.version = process.version;
       existing.lastUpdate = new Date();
-      existing.runningTime = Math.floor((now - startTimes.get(process.name)!.getTime()) / 1000 / 60); // 분 단위로 변환
+      existing.runningTime = Math.floor((now - startTimes.get(process.name)!.getTime()) / 1000 / 60); 
     } else {
       const dbProcesses = await this.serverService.findByCode(serverCode);
       const isDuplicate = dbProcesses?.processes?.some(p => p.name === process.name);
@@ -433,17 +433,35 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   setDisconnected(socketId: string): string | null {
     const serverCode = this.socketToCodeMap.get(socketId);
     if (serverCode) {
-      const serverStatus = this.serverMap.get(serverCode);
-      if (serverStatus) {
-        serverStatus.lastRestart = new Date();
-        this.serverService.update(serverStatus.id, { lastRestart: new Date() });
-      }
+      const prevTimer = this.disconnectTimers.get(serverCode);
+      if (prevTimer) clearTimeout(prevTimer);
+
+
+      const timer = setTimeout(() => {
+        const serverStatus = this.serverMap.get(serverCode);
+        if (serverStatus) {
+          serverStatus.status = 'disconnected';
+          this.serverService.handleServerDisconnected(serverCode);
+        }
+        this.disconnectTimers.delete(serverCode);
+      }, 30000);
+
+      this.disconnectTimers.set(serverCode, timer);
+
       this.finalizeHour(serverCode);
-      this.serverService.handleServerDisconnected(serverCode);
       this.socketToCodeMap.delete(socketId);
       return serverCode;
     }
     return null;
+  }
+
+  clearDisconnectTimer(serverCode: string) {
+    const prevTimer = this.disconnectTimers.get(serverCode);
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+      this.disconnectTimers.delete(serverCode);
+      this.logger.log(`[RECONNECT] 서버(${serverCode}) 재연결, 타이머 클리어: ${new Date().toISOString()}`);
+    }
   }
 
   getServerCodeBySocketId(socketId: string): string | undefined {
