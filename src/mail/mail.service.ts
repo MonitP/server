@@ -38,18 +38,23 @@ export class MailService {
   }
 
   async sendServerDisconnectedMail(serverName: string, processName?: string): Promise<void> {
-    this.logger.log(`메일 수신자 조회 시작: ${serverName}${processName ? ' (' + processName + ')' : ''}`);
-    let recipients = await this.findAll();
-    let recipientEmails = recipients.map(recipient => recipient.email);
+    console.log("serverName : ", serverName)
+    if (serverName === "무주 농장") return;
 
-    // AI-SERVER일 때는 특정 이메일만 필터링
+    this.logger.log(`메일 수신자 조회 시작: ${serverName}${processName ? ' (' + processName + ')' : ''}`);
+
+    const allRecipients = await this.findAll();
+    const allEmails = allRecipients.map(r => r.email);
+
+    const aiTeamPrefixes = ['yjh', 'sjw', 'lih', 'pjb'];
+    const isAITeam = (email: string) => aiTeamPrefixes.some(prefix => email.startsWith(prefix));
+
+    let recipientEmails: string[];
+
     if (processName === 'AI-SERVER') {
-      recipientEmails = recipientEmails.filter(email =>
-        email.startsWith('yjh') ||
-        email.startsWith('sjw') ||
-        email.startsWith('lih') ||
-        email.startsWith('pjb')
-      );
+      recipientEmails = allEmails.filter(isAITeam);
+    } else {
+      recipientEmails = allEmails.filter(email => !isAITeam(email));
     }
 
     if (recipientEmails.length === 0) {
@@ -58,8 +63,10 @@ export class MailService {
     }
 
     this.logger.log(`메일 전송 시작: ${serverName}${processName ? ' (' + processName + ')' : ''} -> ${recipientEmails.join(', ')}`);
+
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
     await this.transporter.sendMail({
       from: process.env.SMTP_FROM,
       to: recipientEmails,
@@ -71,6 +78,9 @@ export class MailService {
         <p>시간: ${formattedDate}</p>
       `,
     });
+
     this.logger.log(`메일 전송 완료: ${serverName}${processName ? ' (' + processName + ')' : ''}`);
   }
+
+
 } 

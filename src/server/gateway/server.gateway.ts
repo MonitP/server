@@ -215,6 +215,7 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
     if (prevTimer) clearTimeout(prevTimer);
 
     const timer = setTimeout(async () => {
+       if (code === "MJ55532-00") return;
       await this.emitNotification(code, NotificationType.DISCONNECTED);
       this.disconnectEmitTimers.delete(code);
     }, 30000);

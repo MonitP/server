@@ -46,7 +46,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             processes: server.processes?.map(p => ({
               name: p.name || '',
               version: p.version || '',
-              status: 'stopped'
+              status: p.status || 'stopped',
+              lastUpdate: p.lastUpdate,
+              startTime: p.startTime,
+              runningTime: p.runningTime
             })) || [],
             status: 'disconnected',
             lastUpdate: new Date(),
@@ -101,10 +104,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
               p.name.startsWith("DSSNR") ||
               p.name.startsWith("Feed")
             ) {
-              checkTime = 1000 * 60 * 5;
+              checkTime = 1000 * 15;
             }
             else {
-              checkTime = 1000 * 30
+              checkTime = 1000 * 60
             }
 
             const last = timestamps.get(p.name);
@@ -115,6 +118,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
                 if (p.name === 'AI-SERVER') {
                   this.serverService.handleServerDisconnected(serverStatus.code);
                 }
+                
+                this.serverService.updateProcesses(serverStatus.code, serverStatus.processes)
+                  .catch(error => this.logger.error(`프로세스 상태 저장 실패: ${error.message}`));
               }
             }
           });
@@ -306,7 +312,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           processes: server.processes?.map(p => ({
             name: p.name,
             version: p.version,
-            status: 'stopped'
+            status: p.status || 'stopped',
+            lastUpdate: p.lastUpdate,
+            startTime: p.startTime,
+            runningTime: p.runningTime
           })) || [],
           status: status.status,
           lastUpdate: new Date(),
