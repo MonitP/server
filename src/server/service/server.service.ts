@@ -136,8 +136,5 @@ export class ServerService {
       this.logger.error(`서버를 찾을 수 없음: code=${code}`);
       return;
     }
-
-    this.logger.log(`메일 전송: ${server.name} (${code})${processName ? ' 프로세스: ' + processName : ''}`);
-    await this.mailService.sendServerDisconnectedMail(server.name, processName);
   }
 } 

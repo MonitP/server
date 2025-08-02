@@ -39,47 +39,88 @@ export class MailService {
 
   async sendServerDisconnectedMail(serverName: string, processName?: string): Promise<void> {
     console.log("serverName : ", serverName)
-    if (serverName === "무주 농장") return;
 
     this.logger.log(`메일 수신자 조회 시작: ${serverName}${processName ? ' (' + processName + ')' : ''}`);
 
     const allRecipients = await this.findAll();
     const allEmails = allRecipients.map(r => r.email);
 
-    const aiTeamPrefixes = ['yjh', 'sjw', 'lih', 'pjb'];
-    const isAITeam = (email: string) => aiTeamPrefixes.some(prefix => email.startsWith(prefix));
-
-    let recipientEmails: string[];
-
-    if (processName === 'AI-SERVER') {
-      recipientEmails = allEmails.filter(isAITeam);
-    } else {
-      recipientEmails = allEmails.filter(email => !isAITeam(email));
-    }
-
-    if (recipientEmails.length === 0) {
+    if (allEmails.length === 0) {
       this.logger.warn('메일 수신자가 없습니다.');
       return;
     }
 
-    this.logger.log(`메일 전송 시작: ${serverName}${processName ? ' (' + processName + ')' : ''} -> ${recipientEmails.join(', ')}`);
+    this.logger.log(`메일 전송 시작: ${serverName}${processName ? ' (' + processName + ')' : ''} -> ${allEmails.join(', ')}`);
 
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
+    const subject = processName 
+      ? `프로세스 끊김 알림 : ${serverName} (${processName})`
+      : `서버 연결 끊김 알림 : ${serverName}`;
+
+    const text = processName
+      ? `${serverName} 서버의 ${processName} 프로세스와의 연결이 끊어졌습니다.\n\n시간: ${formattedDate}`
+      : `${serverName} 서버와의 연결이 끊어졌습니다.\n\n시간: ${formattedDate}`;
+
+    const html = processName
+      ? `
+        <h2>프로세스 끊김 알림</h2>
+        <p><strong>서버:</strong> ${serverName}</p>
+        <p><strong>프로세스:</strong> ${processName}</p>
+        <p><strong>발생 시간:</strong> ${formattedDate}</p>
+        <p>프로세스 상태를 확인하시기 바랍니다.</p>
+      `
+      : `
+        <h2>서버 연결 끊김 알림</h2>
+        <p>${serverName} 서버와의 연결이 끊어졌습니다.</p>
+        <p>시간: ${formattedDate}</p>
+      `;
+
     await this.transporter.sendMail({
       from: process.env.SMTP_FROM,
-      to: recipientEmails,
-      subject: `서버 연결 끊김 알림 : ${serverName}${processName ? ' (' + processName + ')' : ''}`,
-      text: `${serverName} 서버${processName ? ' (' + processName + ')' : ''}와의 연결이 끊어졌습니다.`,
-      html: `
-        <h2>서버 연결 끊김 알림</h2>
-        <p>${serverName} 서버${processName ? ' (' + processName + ')' : ''}와의 연결이 끊어졌습니다.</p>
-        <p>시간: ${formattedDate}</p>
-      `,
+      to: allEmails,
+      subject,
+      text,
+      html,
     });
 
     this.logger.log(`메일 전송 완료: ${serverName}${processName ? ' (' + processName + ')' : ''}`);
+  }
+
+  async sendContaminationAlertMail(serverCode: string, status: string, date: string): Promise<void> {
+    this.logger.log(`오염도 알림 메일 수신자 조회 시작: ${serverCode} - ${status}`);
+
+    const allRecipients = await this.findAll();
+    const allEmails = allRecipients.map(r => r.email);
+
+    if (allEmails.length === 0) {
+      this.logger.warn('메일 수신자가 없습니다.');
+      return;
+    }
+
+    const now = new Date();
+    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+    const statusText = status === 'warning' ? '경고' : status === 'critical' ? '위험' : status;
+    const statusColor = status === 'warning' ? '#FFA500' : status === 'critical' ? '#FF0000' : '#000000';
+
+    await this.transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to: allEmails,
+      subject: `오염도 알림 : ${serverCode} - ${statusText}`,
+      text: `${serverCode} 서버에서 ${statusText} 수준의 오염도가 감지되었습니다.\n날짜 : ${date}\n시간 : ${formattedDate}`,
+      html: `
+        <h2 style="color: ${statusColor};">오염도 알림</h2>
+        <p><strong>서버:</strong> ${serverCode}</p>
+        <p><strong>상태:</strong> <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></p>
+        <p><strong>날짜:</strong> ${date}</p>
+        <p><strong>발생 시간:</strong> ${formattedDate}</p>
+        <p>오염도 이미지를 확인하시기 바랍니다.</p>
+      `,
+    });
+
+    this.logger.log(`오염도 알림 메일 전송 완료: ${serverCode} - ${status}`);
   }
 
 

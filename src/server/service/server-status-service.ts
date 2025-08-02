@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ProcessStatus, ServerStatus } from '../server.interface';
+import { ServerStatus } from '../server.interface';
 import { ServerService } from './server.service';
 import { Server } from 'socket.io';
+import { MailService } from 'src/mail/mail.service';
 
 type hourBuffer = {
   sumCpu: number;
@@ -27,7 +28,10 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private lastDate: string = new Date().toISOString().slice(0, 10);
   private disconnectTimers = new Map<string, NodeJS.Timeout>();
 
-  constructor(private readonly serverService: ServerService) {}
+  constructor(
+    private readonly serverService: ServerService,
+    private readonly mailService: MailService,
+  ) {}
 
   onModuleInit() {
     this.serverService.findAll().then(servers => {
@@ -115,8 +119,19 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
               if (p.status === 'running') {
                 p.status = 'stopped';
                 p.lastUpdate = new Date();
-                if (p.name === 'AI-SERVER') {
+                if (p.name === 'AI-SERVER' || p.name === 'RSS' || p.name === 'SCI') {
                   this.serverService.handleServerDisconnected(serverStatus.code);
+                }
+                
+                if (p.name === 'AI-SERVER' || p.name === 'RSS' || p.name === 'SCI') {
+                  (async () => {
+                    try {
+                      await this.mailService.sendServerDisconnectedMail(serverStatus.code, p.name);
+                      this.logger.log(`${p.name} 프로세스 끊김 메일 전송 완료: ${serverStatus.code}`);
+                    } catch (mailError) {
+                      this.logger.error(`${p.name} 프로세스 끊김 메일 전송 실패: ${mailError}`);
+                    }
+                  })();
                 }
                 
                 this.serverService.updateProcesses(serverStatus.code, serverStatus.processes)
@@ -455,7 +470,6 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       const prevTimer = this.disconnectTimers.get(serverCode);
       if (prevTimer) clearTimeout(prevTimer);
 
-
       const timer = setTimeout(() => {
         const serverStatus = this.serverMap.get(serverCode);
         if (serverStatus) {
@@ -463,12 +477,14 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           this.serverService.handleServerDisconnected(serverCode);
         }
         this.disconnectTimers.delete(serverCode);
+        // 타이머 완료 후 매핑 삭제
+        this.socketToCodeMap.delete(socketId);
       }, 30000);
 
       this.disconnectTimers.set(serverCode, timer);
 
       this.finalizeHour(serverCode);
-      this.socketToCodeMap.delete(socketId);
+      // 매핑 삭제를 타이머 완료 후로 이동
       return serverCode;
     }
     return null;

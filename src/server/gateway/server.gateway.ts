@@ -3,6 +3,8 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Injectable, OnModuleInit } from '@nestjs/common';
@@ -10,6 +12,9 @@ import { ServerService, ServerStatusService } from '../service';
 import { NotificationService } from 'src/notification/service';
 import { NotificationType } from 'src/notification/const/notification-type.enum';
 import { LogService } from 'src/log/log.service';
+import { MinioService } from '../service/minio.service';
+import { ContaminationService } from '../service/contamination.service';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -31,7 +36,10 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private readonly notificationService: NotificationService,
     private readonly serverService: ServerService,
     private readonly logService: LogService,
-  ) {}
+    private readonly minioService: MinioService,
+    private readonly contaminationService: ContaminationService,
+    private readonly mailService: MailService,
+  ) { }
 
   onModuleInit() {
     this.statusService.setSocketServer(this.server);
@@ -40,19 +48,19 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   handleConnection(client: Socket) {
     console.log(`server connected: ${client.id}`);
 
-      const socketCount = this.server.sockets.sockets.size || Object.keys(this.server.sockets.sockets).length;
+    const socketCount = this.server.sockets.sockets.size || Object.keys(this.server.sockets.sockets).length;
     console.log(`현재 연결된 소켓 개수: ${socketCount}`);
 
-      const ip =
-    client.handshake.headers['x-forwarded-for'] || 
-    client.handshake.address ||
-    (client.conn && client.conn.remoteAddress) ||
-    'unknown';
+    const ip =
+      client.handshake.headers['x-forwarded-for'] ||
+      client.handshake.address ||
+      (client.conn && client.conn.remoteAddress) ||
+      'unknown';
 
-  console.log(`server connected: ${client.id} from ${ip}`);
+    console.log(`server connected: ${client.id} from ${ip}`);
 
-  const userAgent = client.handshake.headers['user-agent'] || 'unknown';
-console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
+    const userAgent = client.handshake.headers['user-agent'] || 'unknown';
+    console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
 
 
 
@@ -80,8 +88,8 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
       this.server.emit('notifications');
     });
 
-    client.on('command', async (data: { 
-      serverCode: string; 
+    client.on('command', async (data: {
+      serverCode: string;
       command: string;
       timestamp: string;
     }) => {
@@ -100,12 +108,12 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
       result: string;
     }) => {
       const eventKey = `${data.serverCode}_${data.command}`;
-      
+
       if (!this.processingCommand || this.processingCommand !== eventKey) {
         this.processingCommand = eventKey;
         console.log("command_show ", data);
         this.server.emit('command_show', data);
-        
+
         setTimeout(() => {
           this.processingCommand = null;
         }, 1000);
@@ -153,7 +161,7 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
         timestamp: new Date()
       });
     });
-    
+
     client.on('update-status', async (data: {
       code: string;
       status: {
@@ -177,7 +185,7 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
 
       const currentServerStatus = this.statusService.getServerCodeBySocketId(client.id);
       const serverStatus = currentServerStatus ? 'connected' : 'disconnected';
-      
+
       await this.statusService.update(code, {
         cpu: parseFloat(status.cpu),
         ram: parseFloat(status.ram.usage),
@@ -198,25 +206,147 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
       if (!serverExists) {
         return;
       }
-    
+
       await this.statusService.updateProcesses(data.serverCode, {
         ...data,
         lastUpdate: data.lastUpdate || new Date()
       });
     });
+
+    client.on('contamination', async (data: {
+      serverCode: string;
+      status: string;
+      bucket: string;
+      date: string;
+      detail: string;
+    }) => {
+      try {
+        const isConnected = await this.minioService.testConnection();
+        if (!isConnected) {
+          return;
+        }
+
+        const bucketExists = await this.minioService.bucketExists(data.bucket);
+        if (!bucketExists) {
+          return;
+        }
+
+
+
+        const images = await this.minioService.listImages(data.bucket, data.serverCode, data.date);
+
+        const imagesWithUrls = await Promise.all(
+          images.map(async (imagePath) => {
+            const url = await this.minioService.getImageUrl(data.bucket, data.serverCode, data.date, imagePath);
+            return {
+              path: imagePath,
+              url: url
+            };
+          })
+        );
+
+        await this.contaminationService.saveContaminationData({
+          serverCode: data.serverCode,
+          status: data.status,
+          bucket: data.bucket,
+          date: data.date,
+          images: imagesWithUrls
+        });
+
+        this.server.emit('contamination-images', {
+          serverCode: data.serverCode,
+          status: data.status,
+          bucket: data.bucket,
+          date: data.date,
+          images: imagesWithUrls
+        });
+
+      } catch (error) {
+        console.error('contamination 처리 중 오류:', error);
+      }
+    });
+  }
+
+  @SubscribeMessage('contamination')
+  async handleContamination(
+    @MessageBody() data: {
+      serverCode: string;
+      status: string;
+      bucket: string;
+      date: string;
+      detail: string;
+    },
+  ) {
+    try {
+      const minioServerCode = data.serverCode.replace('-00', '');
+
+      const statusFolder = `${data.date}/${data.status}`;
+
+      const images = await this.minioService.listImages(data.bucket, minioServerCode, data.date, data.status);
+
+      const imagesWithUrls = await Promise.all(
+        images.map(async (imagePath) => {
+          const url = await this.minioService.getImageUrl(data.bucket, minioServerCode, data.date, imagePath);
+          return {
+            path: imagePath,
+            url: url,
+          };
+        })
+      );
+
+      await this.contaminationService.saveContaminationData({
+        serverCode: data.serverCode,
+        status: data.status,
+        bucket: data.bucket,
+        date: data.date,
+        images: imagesWithUrls,
+          detail: null,
+      });
+
+      this.server.emit('contamination-images', {
+        serverCode: data.serverCode,  
+        status: data.status,
+        bucket: data.bucket,
+        date: data.date,
+        images: imagesWithUrls,
+        detail: null,
+      });
+
+      try {
+        await this.mailService.sendContaminationAlertMail(data.serverCode, data.status, data.date);
+      } catch (mailError) {
+      }
+
+
+    } catch (error) {
+      console.error('Contamination 처리 중 오류:', error);
+    }
   }
 
   async handleDisconnect(client: Socket) {
     console.log(`server disconnected: ${client.id}`);
     const code = this.statusService.setDisconnected(client.id);
-    if (!code) return;
+    if (!code) {
+      return;
+    }
 
     const prevTimer = this.disconnectEmitTimers.get(code);
-    if (prevTimer) clearTimeout(prevTimer);
-
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+    }
     const timer = setTimeout(async () => {
-       if (code === "MJ55532-00") return;
       await this.emitNotification(code, NotificationType.DISCONNECTED);
+
+      try {
+        const server = await this.serverService.findByCode(code);
+        if (server) {
+          await this.mailService.sendServerDisconnectedMail(server.name);
+        } else {
+        }
+      } catch (mailError) {
+        console.error('소켓 끊김 메일 전송 실패:', mailError);
+      }
+
       this.disconnectEmitTimers.delete(code);
     }, 30000);
     this.disconnectEmitTimers.set(code, timer);
@@ -225,14 +355,14 @@ console.log(`server connected: ${client.id} from ${ip}, UA: ${userAgent}`);
   private async emitNotification(code: string, type: NotificationType) {
     const server = await this.serverService.findByCode(code);
     if (!server) return;
-  
+
     await this.notificationService.create({
       serverCode: server.code,
       serverName: server.name,
       type,
       timestamp: new Date(),
     });
-  
+
     this.server.emit('notifications');
   }
 }
