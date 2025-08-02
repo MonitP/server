@@ -67,6 +67,10 @@ export class ServerService {
       const existingProcess = existingProcessMap.get(newProcess.name);
       if (existingProcess) {
         existingProcess.status = newProcess.status;
+        existingProcess.lastUpdate = newProcess.lastUpdate || existingProcess.lastUpdate;
+        existingProcess.version = newProcess.version || existingProcess.version;
+        existingProcess.startTime = newProcess.startTime || existingProcess.startTime;
+        existingProcess.runningTime = newProcess.runningTime || existingProcess.runningTime;
       } else {
         server.processes.push(newProcess);
       }

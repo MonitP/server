@@ -202,13 +202,27 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       name?: string;
       lastUpdate?: Date;
     }) => {
-      const serverExists = await this.serverService.findByCode(data.serverCode);
+      if (!data.serverCode || data.serverCode === 'undefined') {
+        return;
+      }
+
+      let serverCode = data.serverCode;
+      if (!serverCode.endsWith('-00')) {
+        serverCode = serverCode + '-00';
+      }
+
+      if (serverCode.includes('--')) {
+        serverCode = serverCode.replace('--', '-');
+      }
+
+      const serverExists = await this.serverService.findByCode(serverCode);
       if (!serverExists) {
         return;
       }
 
-      await this.statusService.updateProcesses(data.serverCode, {
+      await this.statusService.updateProcesses(serverCode, {
         ...data,
+        serverCode: serverCode,
         lastUpdate: data.lastUpdate || new Date()
       });
     });
@@ -300,11 +314,11 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         bucket: data.bucket,
         date: data.date,
         images: imagesWithUrls,
-          detail: null,
+        detail: null,
       });
 
       this.server.emit('contamination-images', {
-        serverCode: data.serverCode,  
+        serverCode: data.serverCode,
         status: data.status,
         bucket: data.bucket,
         date: data.date,

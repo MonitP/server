@@ -31,7 +31,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly serverService: ServerService,
     private readonly mailService: MailService,
-  ) {}
+  ) { }
 
   onModuleInit() {
     this.serverService.findAll().then(servers => {
@@ -79,7 +79,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         this.handleDateChange();
         this.lastDate = todayString;
       }
-      
+
       if (currentHour !== this.currentHour) {
         this.handleHourChange();
         this.currentHour = currentHour;
@@ -96,11 +96,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
           const timestamps = this.processUpdateTimestamps.get(serverStatus.code);
           if (!timestamps) return;
-  
+
           serverStatus.processes.forEach(p => {
             let checkTime = 0
-            
-            if(p.name === "AI-SERVER") {
+
+            if (p.name === "AI-SERVER") {
               checkTime = 1000 * 120
             }
             else if (
@@ -119,23 +119,24 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
               if (p.status === 'running') {
                 p.status = 'stopped';
                 p.lastUpdate = new Date();
+
                 if (p.name === 'AI-SERVER' || p.name === 'RSS' || p.name === 'SCI') {
                   this.serverService.handleServerDisconnected(serverStatus.code);
-                }
-                
-                if (p.name === 'AI-SERVER' || p.name === 'RSS' || p.name === 'SCI') {
+
                   (async () => {
                     try {
                       await this.mailService.sendServerDisconnectedMail(serverStatus.code, p.name);
-                      this.logger.log(`${p.name} 프로세스 끊김 메일 전송 완료: ${serverStatus.code}`);
                     } catch (mailError) {
-                      this.logger.error(`${p.name} 프로세스 끊김 메일 전송 실패: ${mailError}`);
                     }
                   })();
                 }
-                
+
                 this.serverService.updateProcesses(serverStatus.code, serverStatus.processes)
                   .catch(error => this.logger.error(`프로세스 상태 저장 실패: ${error.message}`));
+
+                if (this.socketServer) {
+                  this.socketServer.emit('update', Array.from(this.serverMap.values()));
+                }
               }
             }
           });
@@ -182,7 +183,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
 
     for (const server of servers) {
       if (!server.code || !server.id) continue;
-      
+
       const updateData: any = {
         cpuHistory: new Array(24).fill(null),
         ramHistory: new Array(24).fill(null),
@@ -211,7 +212,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
         serverStatus.ramHistory = new Array(24).fill(null);
         serverStatus.gpuHistory = new Array(24).fill(null);
         serverStatus.networkHistory = new Array(24).fill(null);
-        
+
         if (isFirstDayOfMonth) {
           serverStatus.upTime = 0;
           serverStatus.downTime = 0;
@@ -403,9 +404,9 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async updateProcesses(serverCode: string, process: { 
-    serverCode: string; 
-    version: string; 
+  async updateProcesses(serverCode: string, process: {
+    serverCode: string;
+    version: string;
     name?: string;
     lastUpdate?: Date;
   }) {
@@ -427,7 +428,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
     const timestamps = this.processUpdateTimestamps.get(serverCode)!;
     const startTimes = this.processStartTimes.get(serverCode)!;
     timestamps.set(process.name, now);
-    
+
     const existing = serverStatus.processes.find(p => p.name === process.name);
     if (existing) {
       if (existing.status === 'stopped') {
@@ -438,11 +439,11 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       existing.status = 'running';
       existing.version = process.version;
       existing.lastUpdate = new Date();
-      existing.runningTime = Math.floor((now - startTimes.get(process.name)!.getTime()) / 1000 / 60); 
+      existing.runningTime = Math.floor((now - startTimes.get(process.name)!.getTime()) / 1000 / 60);
     } else {
       const dbProcesses = await this.serverService.findByCode(serverCode);
       const isDuplicate = dbProcesses?.processes?.some(p => p.name === process.name);
-      
+
       if (!isDuplicate) {
         startTimes.set(process.name, new Date());
         serverStatus.processes.push({
@@ -457,7 +458,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
-  
+
 
   remove(code: string) {
     this.serverMap.delete(code);
@@ -506,40 +507,40 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
   private async finalizeHour(code: string) {
     const buffer = this.hourMap.get(code);
     if (!buffer || buffer.count === 0) return;
-  
+
     const avgCpu = buffer.sumCpu / buffer.count;
     const avgRam = buffer.sumRam / buffer.count;
-  
+
     this.hourMap.delete(code);
-  
+
     const server = await this.serverService.findByCode(code);
     if (!server) return;
-  
+
     const hourIndex = this.currentHour;
-  
+
     const todayString = new Date().toISOString().slice(0, 10);
-  
+
     if (!server.historyDate) {
       server.historyDate = todayString;
       server.cpuHistory = new Array(24).fill(null);
       server.ramHistory = new Array(24).fill(null);
     }
-  
+
     if (server.historyDate !== todayString) {
       server.cpuHistory = new Array(24).fill(null);
       server.ramHistory = new Array(24).fill(null);
       server.historyDate = todayString;
     }
-  
+
     server.cpuHistory[hourIndex] = parseFloat(avgCpu.toFixed(2));
     server.ramHistory[hourIndex] = parseFloat(avgRam.toFixed(2));
-  
+
     await this.serverService.update(server.id, {
       cpuHistory: server.cpuHistory,
       ramHistory: server.ramHistory,
       historyDate: server.historyDate,
     });
-  
+
     const serverStatus = this.serverMap.get(code);
     this.serverMap.set(code, {
       ...server,
@@ -558,13 +559,13 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       upTime: serverStatus?.upTime ?? 0,
       downTime: serverStatus?.downTime ?? 0,
     });
-  
+
     const avgNetwork = serverStatus?.network ?? 0;
     this.logger.log(
       `시간대 저장 완료: ${code} - ${hourIndex}시 → CPU ${avgCpu.toFixed(2)}%, RAM ${avgRam.toFixed(2)}%, Network ${avgNetwork.toFixed(2)}%`
     );
   }
-  
+
   async deleteProcess(code: string, processName: string): Promise<void> {
     const serverStatus = this.serverMap.get(code);
     if (!serverStatus) return;
