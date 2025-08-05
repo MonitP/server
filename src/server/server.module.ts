@@ -9,18 +9,16 @@ import { NotificationModule } from '../notification/notification.module';
 import { MailModule } from '../mail/mail.module';
 import { LogModule } from '../log/log.module';
 import { MinioService } from './service/minio.service';
-import { ContaminationService } from './service/contamination.service';
-import { ContaminationData } from './entities/contamination.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Servers, ContaminationData]),
+    TypeOrmModule.forFeature([Servers]), 
     NotificationModule,
     MailModule,
     LogModule,
   ],
   controllers: [ServerController],
-  providers: [ServerService, ServerGateway, ServerStatusService, MinioService, ContaminationService],
-  exports: [ServerService, ServerStatusService, MinioService, ContaminationService],
+  providers: [ServerService, ServerGateway, ServerStatusService, MinioService],
+  exports: [ServerService, ServerStatusService, MinioService],
 })
 export class ServerModule {}

@@ -1,10 +1,9 @@
-import { Controller, Get, Post, Body, Param, NotFoundException, Logger, Delete, Put, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, NotFoundException, Logger, Delete, Put, Res, Query } from '@nestjs/common';
 import { API_URLS } from 'src/consts/api-urls';
 import { CreateServerDto } from '../dto/create-server.dto';
 import { ServerService } from '../service/server.service';
 import { Servers } from '../entities';
 import { MinioService } from '../service/minio.service';
-import { ContaminationService } from '../service/contamination.service';
 import { Response } from 'express';
 
 @Controller(API_URLS.server.base)
@@ -14,7 +13,6 @@ export class ServerController {
   constructor(
     private readonly serversService: ServerService,
     private readonly minioService: MinioService,
-    private readonly contaminationService: ContaminationService,
   ) {}
 
   @Post(API_URLS.server.create)
@@ -72,36 +70,40 @@ export class ServerController {
     }
   }
 
-  @Get('contamination')
-  async getContaminationData() {
+  @Get('minio/buckets')
+  async listBuckets() {
     try {
-      const data = await this.contaminationService.getAllContaminationData();
+      const buckets = await this.minioService.listBuckets();
       return {
-        success: true,
-        data: data
+        statusCode: 200,
+        message: '버킷 목록 조회 성공',
+        data: buckets
       };
     } catch (error) {
-      this.logger.error(`Contamination 데이터 조회 실패: ${error.message}`);
+      this.logger.error(`버킷 목록 조회 실패: ${error.message}`);
       return {
-        success: false,
-        error: '데이터 조회 중 오류가 발생했습니다.'
+        statusCode: 500,
+        message: '버킷 목록 조회 실패',
+        data: []
       };
     }
   }
 
-  @Get('contamination/:serverCode')
-  async getContaminationDataByServer(@Param('serverCode') serverCode: string) {
+  @Get('minio/objects')
+  async listObjects(@Query('bucket') bucket: string, @Query('prefix') prefix?: string) {
     try {
-      const data = await this.contaminationService.getContaminationDataByServer(serverCode);
+      const objects = await this.minioService.listAllObjects(bucket, prefix);
       return {
-        success: true,
-        data: data
+        statusCode: 200,
+        message: '객체 목록 조회 성공',
+        data: objects
       };
     } catch (error) {
-      this.logger.error(`서버별 Contamination 데이터 조회 실패: ${error.message}`);
+      this.logger.error(`객체 목록 조회 실패: ${error.message}`);
       return {
-        success: false,
-        error: '데이터 조회 중 오류가 발생했습니다.'
+        statusCode: 500,
+        message: '객체 목록 조회 실패',
+        data: []
       };
     }
   }

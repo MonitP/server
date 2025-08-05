@@ -96,4 +96,38 @@ export class MinioService {
       return false;
     }
   }
+
+  async listBuckets(): Promise<any[]> {
+    try {
+      const buckets = await this.minioClient.listBuckets();
+      return buckets.map(bucket => ({
+        name: bucket.name,
+        creationDate: bucket.creationDate
+      }));
+    } catch (error) {
+      this.logger.error(`버킷 목록 조회 실패: ${error.message}`);
+      return [];
+    }
+  }
+
+  async listAllObjects(bucket: string, prefix?: string): Promise<any[]> {
+    try {
+      const objects = await this.minioClient.listObjects(bucket, prefix || '', true);
+      const objectList: any[] = [];
+      
+      for await (const obj of objects) {
+        objectList.push({
+          name: obj.name,
+          size: obj.size,
+          lastModified: obj.lastModified,
+          etag: obj.etag
+        });
+      }
+      
+      return objectList;
+    } catch (error) {
+      this.logger.error(`객체 목록 조회 실패: ${error.message}`);
+      return [];
+    }
+  }
 } 

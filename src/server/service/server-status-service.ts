@@ -101,7 +101,12 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
             let checkTime = 0
 
             if (p.name === "AI-SERVER") {
-              checkTime = 1000 * 120
+              if (serverStatus.code == "MJ55532-00") {
+                checkTime = 1000 * 300
+              }
+              else {
+                checkTime = 1000 * 240
+              }
             }
             else if (
               p.name.startsWith("DSMC") ||

@@ -13,7 +13,6 @@ import { NotificationService } from 'src/notification/service';
 import { NotificationType } from 'src/notification/const/notification-type.enum';
 import { LogService } from 'src/log/log.service';
 import { MinioService } from '../service/minio.service';
-import { ContaminationService } from '../service/contamination.service';
 import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
@@ -37,7 +36,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private readonly serverService: ServerService,
     private readonly logService: LogService,
     private readonly minioService: MinioService,
-    private readonly contaminationService: ContaminationService,
     private readonly mailService: MailService,
   ) { }
 
@@ -235,18 +233,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       detail: string;
     }) => {
       try {
-        const isConnected = await this.minioService.testConnection();
-        if (!isConnected) {
-          return;
-        }
-
-        const bucketExists = await this.minioService.bucketExists(data.bucket);
-        if (!bucketExists) {
-          return;
-        }
-
-
-
         const images = await this.minioService.listImages(data.bucket, data.serverCode, data.date);
 
         const imagesWithUrls = await Promise.all(
@@ -258,23 +244,6 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             };
           })
         );
-
-        await this.contaminationService.saveContaminationData({
-          serverCode: data.serverCode,
-          status: data.status,
-          bucket: data.bucket,
-          date: data.date,
-          images: imagesWithUrls
-        });
-
-        this.server.emit('contamination-images', {
-          serverCode: data.serverCode,
-          status: data.status,
-          bucket: data.bucket,
-          date: data.date,
-          images: imagesWithUrls
-        });
-
       } catch (error) {
         console.error('contamination 처리 중 오류:', error);
       }
@@ -292,41 +261,8 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     },
   ) {
     try {
-      const minioServerCode = data.serverCode.replace('-00', '');
-
-      const statusFolder = `${data.date}/${data.status}`;
-
-      const images = await this.minioService.listImages(data.bucket, minioServerCode, data.date, data.status);
-
-      const imagesWithUrls = await Promise.all(
-        images.map(async (imagePath) => {
-          const url = await this.minioService.getImageUrl(data.bucket, minioServerCode, data.date, imagePath);
-          return {
-            path: imagePath,
-            url: url,
-          };
-        })
-      );
-
-      await this.contaminationService.saveContaminationData({
-        serverCode: data.serverCode,
-        status: data.status,
-        bucket: data.bucket,
-        date: data.date,
-        images: imagesWithUrls,
-        detail: null,
-      });
-
-      this.server.emit('contamination-images', {
-        serverCode: data.serverCode,
-        status: data.status,
-        bucket: data.bucket,
-        date: data.date,
-        images: imagesWithUrls,
-        detail: null,
-      });
-
       try {
+        console.log('contamination', data);
         await this.mailService.sendContaminationAlertMail(data.serverCode, data.status, data.date);
       } catch (mailError) {
       }
