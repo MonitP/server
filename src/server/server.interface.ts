@@ -30,6 +30,7 @@ export interface ServerStatus {
   lastRestart?: Date;
   startTime?: Date;
   availability?: number;
+  isNoServer?: boolean;
 }
 
 

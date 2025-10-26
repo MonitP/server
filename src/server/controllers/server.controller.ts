@@ -38,6 +38,12 @@ export class ServerController {
     return server;
   }
 
+  @Put(':id/no-server')
+  async updateNoServerStatus(@Param('id') id: string, @Body() body: { isNoServer: boolean }): Promise<Servers> {
+    const server = await this.serversService.updateNoServerStatus(id, body.isNoServer);
+    return server;
+  }
+
   @Delete(API_URLS.server.deleteProcess)
   async deleteProcess(
     @Param('code') code: string,

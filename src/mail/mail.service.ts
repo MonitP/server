@@ -70,11 +70,13 @@ export class MailService {
         <p><strong>프로세스:</strong> ${processName}</p>
         <p><strong>발생 시간:</strong> ${formattedDate}</p>
         <p>프로세스 상태를 확인하시기 바랍니다.</p>
+        <p><a href="http://gsrnd.m3sen.com:14201/" style="color: #0066cc; text-decoration: underline;">확인하기</a></p>
       `
       : `
         <h2>서버 연결 끊김 알림</h2>
         <p>${serverName} 서버와의 연결이 끊어졌습니다.</p>
-        <p>시간: ${formattedDate}</p>
+        <p>발생 시간: ${formattedDate}</p>
+        <p><a href="http://gsrnd.m3sen.com:14201/" style="color: #0066cc; text-decoration: underline;">확인하기</a></p>
       `;
 
     await this.transporter.sendMail({
@@ -117,6 +119,7 @@ export class MailService {
         <p><strong>날짜:</strong> ${date}</p>
         <p><strong>발생 시간:</strong> ${formattedDate}</p>
         <p>오염도 이미지를 확인하시기 바랍니다.</p>
+        <p><a href="http://gsrnd.m3sen.com:14201/" style="color: #0066cc; text-decoration: underline;">확인하기</a></p>
       `,
     });
 

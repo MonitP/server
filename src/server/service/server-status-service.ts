@@ -346,7 +346,8 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
           networkHistory: new Array(24).fill(null),
           upTime: 0,
           downTime: 0,
-          availability: 0
+          availability: 0,
+          isNoServer: server.isNoServer || false
         };
         this.processIdCounters.set(code, 0);
       }
@@ -369,6 +370,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
       serverStatus.status = status.status;
       serverStatus.lastUpdate = new Date();
       serverStatus.availability = this.calculateAvailability(serverStatus.upTime, serverStatus.downTime);
+      serverStatus.isNoServer = server.isNoServer || false; // isNoServer 상태 보존
 
       this.serverMap.set(code, {
         ...server,

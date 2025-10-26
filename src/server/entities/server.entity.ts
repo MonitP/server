@@ -58,5 +58,8 @@ export class Servers {
   updatedAt: Date;
 
   @Column({ type: 'varchar', nullable: true })
-  historyDate: string; 
+  historyDate: string;
+
+  @Column({ type: 'boolean', default: false })
+  isNoServer: boolean;
 } 

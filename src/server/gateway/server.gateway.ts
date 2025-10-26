@@ -290,8 +290,9 @@ export class ServerGateway implements OnGatewayConnection, OnGatewayDisconnect, 
       try {
         const server = await this.serverService.findByCode(code);
         if (server) {
+
+          if (code == "MJ55532-00") return;
           await this.mailService.sendServerDisconnectedMail(server.name);
-        } else {
         }
       } catch (mailError) {
         console.error('소켓 끊김 메일 전송 실패:', mailError);

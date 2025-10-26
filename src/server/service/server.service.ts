@@ -28,7 +28,7 @@ export class ServerService {
 
   async findAll(): Promise<Partial<Servers>[]> {
     const servers = await this.serversRepository.find({
-      select: ['id', 'name', 'code', 'ip', 'port', 'processes', 'cpuHistory', 'ramHistory', 'gpuHistory', 'networkHistory', 'upTime', 'downTime'],
+      select: ['id', 'name', 'code', 'ip', 'port', 'processes', 'cpuHistory', 'ramHistory', 'gpuHistory', 'networkHistory', 'upTime', 'downTime', 'isNoServer'],
     });
   
     return servers.map(server => ({
@@ -105,6 +105,22 @@ export class ServerService {
       ...updateServerDto,
     });
     
+    return updatedServer;
+  }
+
+  async updateNoServerStatus(id: string, isNoServer: boolean): Promise<Servers> {
+    this.logger.log(`서버 없음 상태 업데이트 시도: ID=${id}, isNoServer=${isNoServer}`);
+    
+    const server = await this.findOne(id);
+    if (!server) {
+      this.logger.error(`서버를 찾을 수 없음: ID=${id}`);
+      throw new NotFoundException('서버를 찾을 수 없습니다.');
+    }
+
+    server.isNoServer = isNoServer;
+    const updatedServer = await this.serversRepository.save(server);
+    
+    this.logger.log(`서버 없음 상태 업데이트 성공: ID=${id}, isNoServer=${isNoServer}`);
     return updatedServer;
   }
 
