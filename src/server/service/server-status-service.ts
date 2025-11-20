@@ -116,7 +116,7 @@ export class ServerStatusService implements OnModuleInit, OnModuleDestroy {
               checkTime = 1000 * 15;
             }
             else {
-              checkTime = 1000 * 60
+              checkTime = 1000 * 300
             }
 
             const last = timestamps.get(p.name);
